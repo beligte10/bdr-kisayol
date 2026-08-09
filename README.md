@@ -21,21 +21,40 @@ Pano dört **sekme** halinde düzenlenmiştir; tek seferde bir sekme görünür,
 
 ### "Tüm raporlar" linki
 
-Doğrudan PDF'i olan 25 bankanın kartında, butonların altında geçmiş dönemlere erişim linki bulunur:
+Her kartta, butonların altında geçmiş dönemlere erişim linki bulunur:
 
 - Bankanın sitesinde Solo ve Konsolide raporlar **ayrı sayfalarda** yayımlanıyorsa iki ayrı link gösterilir — *Tüm raporlar: Solo · Konsolide* (6 banka: VakıfBank, Garanti BBVA, Akbank, Yapı Kredi, DenizBank, Kuveyt Türk).
-- Tek sayfada yayımlanıyorsa tek link gösterilir — *Tüm raporlar ↗* (19 banka).
+- Tek sayfada yayımlanıyorsa tek link gösterilir — *Tüm raporlar ↗*.
 
-### PDF / banka sayfası ayrımı
+### Solo / Konsolide butonları
 
-Her kartın adının altındaki rozet, o bankada butonların ne yapacağını gösterir:
+**66 bankanın tamamında** Solo ve Konsolide butonları son dönem raporunun **PDF'ini doğrudan açar.** Kart adının altındaki yeşil rozet (ör. `2026/2Ç`) o PDF'in dönemini belirtir. Butonların tamamı (102 adet) HTTP isteğiyle ve `%PDF` imzası kontrol edilerek doğrulanmıştır.
 
-| Rozet | Anlamı |
-|---|---|
-| Yeşil dönem rozeti (ör. `2026/2Ç`) | Butonlar **doğrudan PDF** açar; rozet raporun dönemini belirtir |
-| Gri **"Banka sayfası"** rozeti | Butonlar bankanın kendi rapor sayfasını açar |
+PDF'lerin kaynağı iki türlüdür:
 
-Doğrudan PDF'i olan 25 bankanın 20'si "İlk 20 Banka" sekmesinde, kalan 5'i (Dünya Katılım, TSKB, İller Bankası, Türk Eximbank, Şekerbank) kendi gruplarındadır.
+| Kaynak | Banka sayısı | Açıklama |
+|---|---|---|
+| Bankanın kendi sitesi | 43 | Butonlar bankanın yayımladığı PDF adresine gider; banka yeni rapor yayımladığında link eskir, dönemsel güncelleme gerekir |
+| Depoda barındırılan BDDK kopyası (`raporlar/`) | 23 | BDDK'dan indirilip depoya konulmuştur; site tarafında sabit PDF adresi bulunamayan bankalar için |
+
+İkinci grup, raporları JavaScript ile yükleyen, bot koruması olan veya dosya adları dönem bilgisi taşımayan bankalardır: Hayat Finans, Burgan Bank, Odeabank, Citibank, MUFG Bank Turkey, Türk Ticaret Bankası, Arap Türk Bankası, Bank Mellat, Société Générale, JPMorgan Chase, Intesa Sanpaolo, Birleşik Fon Bankası, Turkish Bank, Takasbank, Kalkınma Bankası, Golden Global Bank, Misyon Bank, GSD Yatırım Bankası, BankPozitif — ayrıca Anadolubank, ICBC Turkey, Aktif Bank ve Tera Bank'ın yalnızca Konsolide raporları.
+
+**Tek butonlu kartlar:** 17 bankanın BDDK'da konsolide raporu bulunmadığından (bağlı ortaklığı olmayan bankalar) yalnızca Solo butonu gösterilir.
+
+**Güncelleme:** Yeni çeyrek yayımlandığında `BDR-Arsiv/bdr_indir.py --yil <yıl> --bankalar "<banka adları>"` çalıştırılıp yeni PDF'ler `raporlar/` altına kopyalanmalı ve `index.html` içindeki yollar güncellenmelidir.
+
+### Arşiv scripti (BDR-Arsiv/bdr_indir.py)
+
+BDDK'nın düzenli dosya adı kalıbını (`BDREki-{bankakodu}-{SOLO|KONSOLIDE}-{yıl}-{ay}.zip`) kullanarak seçilen dönemlerin tüm raporlarını indirir, zip içinden PDF'i çıkarır ve `raporlar/<yıl>-<çeyrek>/<banka>-<tip>.pdf` şeklinde diziler; ayrıca `manifest.json` üretir. 66 bankanın BDDK kodları script içinde gömülüdür. Yeniden çalıştırıldığında mevcut dosyaları atlar (kesintiden devam eder) ve BDDK'yı yormamak için istekler arasında bekler.
+
+```bash
+python3 bdr_indir.py --yil 2026                  # tek yıl, tüm bankalar
+python3 bdr_indir.py --yil 2022 2023 2024 2025 2026
+python3 bdr_indir.py --yil 2026 --sadece-ilk20   # yalnız ilk 20 banka
+python3 bdr_indir.py --yil 2026 --bankalar "Takasbank" "Odeabank"   # seçili bankalar
+```
+
+Ölçülen boyutlar: ortalama ~2,3 MB/PDF. Son 5 yıl (2022–2026) tüm bankalar ≈ 1.634 rapor ≈ **3,7 GB**; yalnızca ilk 20 banka ≈ **1,8 GB**. Bu boyutlar GitHub deposu için uygun değildir (GitHub 1 GB üzerini önermez); arşiv barındırılacaksa Cloudflare R2 (10 GB ücretsiz, indirme trafiği ücretsiz), kurumsal ağ sürücüsü veya SharePoint tercih edilmelidir. Geçmiş dönem arşivi şu an **askıya alınmıştır**; script hazır durumda bekler. Panoda kullanılan son dönem PDF'leri (23 banka, ~62 MB) `raporlar/` klasöründe depoda tutulmaktadır — bu boyut GitHub için sorun değildir.
 
 Toplam **66 banka** — BDDK'nın [Bağımsız Denetim Raporları portalında](https://www.bddk.org.tr/BdrUyg/) listelenen bankaların tamamı (bkz. aşağıdaki "BDDK entegrasyonu" bölümü). Son eklenenler: Birleşik Fon Bankası, Intesa Sanpaolo, JPMorgan Chase, Türk Ticaret Bankası (Mevduat grubu).
 
@@ -43,7 +62,7 @@ Sıralama, TBB kaynaklı 2025 3. çeyrek (30.09.2025) aktif büyüklük verileri
 
 ### Doğrudan PDF linkleri
 
-Aşağıdaki **25 bankada** Solo/Konsolide butonları **son dönem raporunun PDF'ini doğrudan açar** (ara sayfa yok, zip yok). Kart üzerinde hangi döneme ait olduğu rozet olarak yazar (ör. `2026/2Ç`):
+**47 bankada** Solo/Konsolide butonları **son dönem raporunun PDF'ini doğrudan açar** (ara sayfa yok, zip yok). Kart üzerinde hangi döneme ait olduğu rozet olarak yazar (ör. `2026/2Ç`). Aşağıdaki tablo ilk turda eklenen 25 bankayı listeler; sonradan eklenen 22 banka (Anadolubank, Deutsche Bank, Turkland Bank, Bank of China Turkey, Ziraat Dinamik, Colendi Bank, Rabobank, Destek Yatırım Bankası, Q Yatırım Bankası, PashaBank, Tera Bank, D Yatırım Bankası, Bank of America Yatırım Bank, Standard Chartered, Aytemiz Yatırım Bankası, TOM Bank, Aktif Bank, Alternatif Bank, Diler Yatırım Bankası, Hedef Yatırım Bankası, ICBC Turkey, Nurol Yatırım Bankası) da aynı şekilde çalışır:
 
 | Banka | Dönem | Banka | Dönem |
 |---|---|---|---|
