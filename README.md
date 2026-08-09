@@ -13,9 +13,11 @@ Canlı repo: [github.com/beligte10/bdr-kisayol](https://github.com/beligte10/bdr
 Pano dört **sekme** halinde düzenlenmiştir; tek seferde bir sekme görünür, üstteki sekme butonlarına tıklayarak geçiş yapılır:
 
 - **İlk 20 Banka** (20) — mevduat + katılım bankaları arasında aktif büyüklüğe göre ilk 20 banka, **1'den 20'ye numaralandırılmış** olarak. Bu 20 bankanın tamamında Solo/Konsolide butonları son dönem raporunun PDF'ini doğrudan açar.
-- **Katılım Bankaları** (3) — ilk 20'ye giremeyenler: Dünya Katılım, Hayat Finans, TOM Bank
-- **Mevduat Bankaları** (22) — ilk 20'ye giremeyen mevduat bankaları
+- **Katılım Bankaları** (9) — katılım bankalarının tamamı, aktif büyüklük sırasıyla
+- **Mevduat Bankaları** (36) — mevduat bankalarının tamamı, aktif büyüklük sırasıyla
 - **Kalkınma ve Yatırım Bankaları** (21) — Türk Eximbank, İller Bankası, TSKB, Takasbank, Kalkınma Bankası, Aktif Bank, Nurol Yatırım Bankası, Destek Yatırım Bankası, Golden Global Bank, Q Yatırım Bankası, PashaBank, Tera Bank, D Yatırım Bankası, Misyon Bank, Bank of America Yatırım Bank, Hedef Yatırım Bankası, GSD Yatırım Bankası, BankPozitif, Standard Chartered, Diler Yatırım Bankası, Aytemiz Yatırım Bankası
+
+İlk 20'de yer alan bankalar **kendi kategori sekmelerinde de** gösterilir; yani "İlk 20 Banka" sekmesi bir kısayol/özet niteliğindedir. Bu nedenle toplam kart sayısı 86'dır (66 benzersiz banka, 20'si iki sekmede birden). Aramada her banka **yalnızca bir kez** listelenir.
 
 ### "Tüm raporlar" linki
 
