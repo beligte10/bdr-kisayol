@@ -279,6 +279,7 @@
         }
         .pill-full { flex: 1 1 100%; }
         .all-reports-split {
+            display: none;
             margin-top: 6px;
             text-align: center;
             font-size: 0.6rem;
@@ -299,7 +300,7 @@
         .all-reports-split a:hover { text-decoration: underline; }
         .all-reports-split .sep { opacity: 0.5; }
         .all-reports {
-            display: block;
+            display: none;
             margin-top: 6px;
             text-align: center;
             font-size: 0.6rem;
@@ -1555,7 +1556,7 @@
                 if (donemBadge) donemBadge.textContent = orig.donemText;
                 if (pendingBadge) pendingBadge.style.display = orig.pendingDisplay;
                 if (actions) actions.style.display = '';
-                if (links) links.style.display = '';
+                if (links) links.style.display = 'none';
             });
             resetModeButtons();
             archiveLatestBtn.classList.add('active');
@@ -1595,7 +1596,7 @@
                 var actions = getActionsEl(card);
                 var links = getReportLinksEl(card);
                 if (actions) actions.style.display = 'none';
-                if (links) links.style.display = '';
+                if (links) links.style.display = 'block';
             });
             resetModeButtons();
             bankSitesBtn.classList.add('active');
