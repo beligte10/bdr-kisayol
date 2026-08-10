@@ -1561,12 +1561,16 @@
         function getActionsEl(card) { return card.querySelector('.split-actions'); }
         function getReportLinksEl(card) { return card.querySelector('.all-reports') || card.querySelector('.all-reports-split'); }
 
-        function setPill(el, info) {
+        function setPill(el, info, fallback) {
             if (!el) return;
             if (info) {
                 el.setAttribute('href', ARCHIVE_BASE + info.path);
                 el.classList.remove('pill-disabled');
                 el.removeAttribute('title');
+            } else if (fallback) {
+                el.setAttribute('href', fallback.href);
+                el.classList.remove('pill-disabled');
+                el.setAttribute('title', 'Banka sitesinden — BDDK arşivinde bu dönem için henüz kayıt yok');
             } else {
                 el.setAttribute('href', '#');
                 el.classList.add('pill-disabled');
@@ -1615,6 +1619,7 @@
 
         function showPeriod(yil, ceyrek) {
             var donem = yil + '-' + ceyrek;
+            var donemLabel = yil + '/' + QUARTER_LABEL[ceyrek];
             var bulunanBankalar = new Set();
             allCards.forEach(function(card) {
                 var solo = card.querySelector('.split-actions a.pill:not(.pill-alt)');
@@ -1624,10 +1629,14 @@
                 var actions = getActionsEl(card);
                 var links = getReportLinksEl(card);
                 var kayit = (ARSIV[card.dataset.bank] || {})[donem];
-                setPill(solo, kayit && kayit.solo);
-                setPill(kons, kayit && kayit.konsolide);
-                if (kayit) bulunanBankalar.add(card.dataset.bank);
-                if (donemBadge) donemBadge.textContent = yil + '/' + QUARTER_LABEL[ceyrek];
+                var orig = archiveOriginals.get(card);
+                // BDDK arşivinde yoksa: bankanın kendi sitesindeki "son dönem" linki
+                // tam bu döneme denk geliyorsa onu kullan (BDDK henüz almamış olabilir)
+                var canliEslesme = orig && orig.donemText === donemLabel;
+                setPill(solo, kayit && kayit.solo, canliEslesme ? orig.solo : null);
+                setPill(kons, kayit && kayit.konsolide, canliEslesme ? orig.kons : null);
+                if (kayit || (canliEslesme && (orig.solo || orig.kons))) bulunanBankalar.add(card.dataset.bank);
+                if (donemBadge) donemBadge.textContent = donemLabel;
                 if (pendingBadge) pendingBadge.style.display = 'none';
                 if (actions) actions.style.display = '';
                 if (links) links.style.display = 'none';
