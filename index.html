@@ -492,6 +492,7 @@
     </div>
 
     <div class="archive-bar" id="archiveBar">
+        <button type="button" class="archive-chip" id="bankSitesBtn">Banka Websiteleri</button>
         <span class="archive-label">Dönem:</span>
         <button type="button" class="archive-chip active" id="archiveLatestBtn">Son Dönem</button>
         <select class="archive-select" id="archiveYear">
@@ -1506,7 +1507,11 @@
         var archiveYearSel = document.getElementById('archiveYear');
         var archiveQuarterSel = document.getElementById('archiveQuarter');
         var archiveHint = document.getElementById('archiveHint');
+        var bankSitesBtn = document.getElementById('bankSitesBtn');
         var QUARTER_LABEL = { '1C': '1Ç', '2C': '2Ç', '3C': '3Ç', '4C': '4Ç' };
+
+        function getActionsEl(card) { return card.querySelector('.split-actions'); }
+        function getReportLinksEl(card) { return card.querySelector('.all-reports') || card.querySelector('.all-reports-split'); }
 
         function setPill(el, info) {
             if (!el) return;
@@ -1521,6 +1526,13 @@
             }
         }
 
+        function resetModeButtons() {
+            archiveLatestBtn.classList.remove('active');
+            bankSitesBtn.classList.remove('active');
+            archiveYearSel.classList.remove('archive-active');
+            archiveQuarterSel.classList.remove('archive-active');
+        }
+
         function showLatest() {
             allCards.forEach(function(card) {
                 var orig = archiveOriginals.get(card);
@@ -1528,6 +1540,8 @@
                 var kons = card.querySelector('.split-actions a.pill-alt');
                 var donemBadge = card.querySelector('.donem-badge');
                 var pendingBadge = card.querySelector('.pending-badge');
+                var actions = getActionsEl(card);
+                var links = getReportLinksEl(card);
                 if (solo && orig.solo) {
                     solo.setAttribute('href', orig.solo.href);
                     solo.classList.remove('pill-disabled');
@@ -1540,10 +1554,11 @@
                 }
                 if (donemBadge) donemBadge.textContent = orig.donemText;
                 if (pendingBadge) pendingBadge.style.display = orig.pendingDisplay;
+                if (actions) actions.style.display = '';
+                if (links) links.style.display = '';
             });
+            resetModeButtons();
             archiveLatestBtn.classList.add('active');
-            archiveYearSel.classList.remove('archive-active');
-            archiveQuarterSel.classList.remove('archive-active');
             archiveYearSel.value = '';
             archiveQuarterSel.value = '';
             archiveHint.textContent = '';
@@ -1557,18 +1572,36 @@
                 var kons = card.querySelector('.split-actions a.pill-alt');
                 var donemBadge = card.querySelector('.donem-badge');
                 var pendingBadge = card.querySelector('.pending-badge');
+                var actions = getActionsEl(card);
+                var links = getReportLinksEl(card);
                 var kayit = (ARSIV[card.dataset.bank] || {})[donem];
                 setPill(solo, kayit && kayit.solo);
                 setPill(kons, kayit && kayit.konsolide);
                 if (kayit) bulunanBankalar.add(card.dataset.bank);
                 if (donemBadge) donemBadge.textContent = yil + '/' + QUARTER_LABEL[ceyrek];
                 if (pendingBadge) pendingBadge.style.display = 'none';
+                if (actions) actions.style.display = '';
+                if (links) links.style.display = 'none';
             });
             var bulunanBanka = bulunanBankalar.size;
-            archiveLatestBtn.classList.remove('active');
+            resetModeButtons();
             archiveYearSel.classList.add('archive-active');
             archiveQuarterSel.classList.add('archive-active');
             archiveHint.textContent = bulunanBanka + ' bankada rapor bulundu';
+        }
+
+        function showBankSites() {
+            allCards.forEach(function(card) {
+                var actions = getActionsEl(card);
+                var links = getReportLinksEl(card);
+                if (actions) actions.style.display = 'none';
+                if (links) links.style.display = '';
+            });
+            resetModeButtons();
+            bankSitesBtn.classList.add('active');
+            archiveYearSel.value = '';
+            archiveQuarterSel.value = '';
+            archiveHint.textContent = '';
         }
 
         function applyArchiveSelection() {
@@ -1580,12 +1613,13 @@
                 showLatest();
             } else {
                 // yalnızca biri seçilmiş: diğerini bekle, mevcut seçimi bozma
-                archiveLatestBtn.classList.remove('active');
+                resetModeButtons();
                 archiveHint.textContent = yil ? 'Şimdi çeyrek seçin' : 'Şimdi yıl seçin';
             }
         }
 
         archiveLatestBtn.addEventListener('click', showLatest);
+        bankSitesBtn.addEventListener('click', showBankSites);
         archiveYearSel.addEventListener('change', applyArchiveSelection);
         archiveQuarterSel.addEventListener('change', applyArchiveSelection);
 
