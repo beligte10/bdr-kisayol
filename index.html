@@ -398,15 +398,6 @@
             padding: 1px 6px;
             cursor: help;
         }
-        footer.note {
-            max-width: 1180px;
-            margin: 8px auto 0;
-            padding: 0 20px;
-            color: var(--text-muted);
-            font-size: 0.75rem;
-            text-align: center;
-        }
-
         @media (max-width: 768px) {
             .container { padding: 18px 14px 0; }
             .grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
@@ -426,7 +417,6 @@
             .split-actions { gap: 4px; margin-top: 8px; }
             .pill { font-size: 0.58rem; padding: 4px 2px; letter-spacing: 0.1px; }
             .own-badge { font-size: 0.52rem; padding: 1px 5px; top: -6px; right: 4px; }
-            footer.note { font-size: 0.68rem; padding: 0 14px; }
         }
     </style>
 </head>
@@ -1152,6 +1142,7 @@
       </section>
 
       <section class="tab-panel" data-panel="kalkinma">
+        <p class="panel-note">Aktif büyüklüğe göre sıralanmıştır.</p>
         <div class="grid">
         <div class="card split-card" data-bank="Türk Eximbank">
           
@@ -1374,8 +1365,6 @@
         </div>
       </section>
     </div>
-
-    <footer class="note">Bazı bankalarda Solo ve Konsolide raporlar aynı sayfada yayımlandığı için iki buton da aynı sayfayı açar.</footer>
 
     <script>
     (function() {
