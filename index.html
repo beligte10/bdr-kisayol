@@ -341,43 +341,70 @@
         .card.filtered-out { display: none; }
         .archive-bar {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            flex-wrap: wrap;
             gap: 8px;
             max-width: 1180px;
-            margin: 14px auto 0;
+            margin: 16px auto 0;
             padding: 0 20px;
         }
-        .archive-label {
-            font-size: 0.8rem;
+        .archive-intro {
+            font-size: 0.76rem;
             font-weight: 600;
             color: var(--text-muted);
+            letter-spacing: 0.2px;
         }
-        .archive-chip {
+        .archive-mode-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: stretch;
+            gap: 10px;
+            width: 100%;
+        }
+        .archive-mode-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 3px;
+            min-width: 158px;
+            padding: 9px 16px 10px;
             border: 1.5px solid var(--border);
+            border-radius: 14px;
             background: #ffffff;
-            color: var(--text);
-            font-size: 0.76rem;
-            font-weight: 700;
-            padding: 6px 14px;
-            border-radius: 999px;
             cursor: pointer;
             font-family: inherit;
-            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+            transition: background 0.15s ease, border-color 0.15s ease;
         }
-        .archive-chip.active {
-            background: var(--navy);
+        .archive-mode-btn.active {
             border-color: var(--navy);
-            color: #ffffff;
+            background: rgba(1, 107, 78, 0.07);
+        }
+        .amb-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .archive-mode-btn.active .amb-title { color: var(--navy); }
+        .amb-desc {
+            font-size: 0.63rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+            max-width: 150px;
+        }
+        .archive-period-selects {
+            display: flex;
+            gap: 6px;
+            margin-top: 5px;
         }
         .archive-select {
             border: 1.5px solid var(--border);
             background: #ffffff;
             color: var(--text);
-            font-size: 0.76rem;
+            font-size: 0.72rem;
             font-weight: 700;
-            padding: 6px 10px;
+            padding: 5px 8px;
             border-radius: 999px;
             cursor: pointer;
             font-family: inherit;
@@ -391,6 +418,11 @@
             color: var(--text-muted);
             width: 100%;
             text-align: center;
+            min-height: 1.2em;
+        }
+        @media (max-width: 768px) {
+            .archive-mode-btn { min-width: 130px; padding: 8px 10px 9px; }
+            .amb-desc { max-width: 120px; }
         }
         .pill-disabled {
             opacity: 0.35;
@@ -493,25 +525,39 @@
     </div>
 
     <div class="archive-bar" id="archiveBar">
-        <button type="button" class="archive-chip" id="bankSitesBtn">Banka Websiteleri</button>
-        <span class="archive-label">Dönem:</span>
-        <button type="button" class="archive-chip active" id="archiveLatestBtn">Son Dönem</button>
-        <select class="archive-select" id="archiveYear">
-            <option value="">Yıl</option>
-            <option value="2026">2026</option>
-            <option value="2025">2025</option>
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
-            <option value="2022">2022</option>
-            <option value="2021">2021</option>
-        </select>
-        <select class="archive-select" id="archiveQuarter">
-            <option value="">Çeyrek</option>
-            <option value="1C">1. Çeyrek</option>
-            <option value="2C">2. Çeyrek</option>
-            <option value="3C">3. Çeyrek</option>
-            <option value="4C">4. Çeyrek</option>
-        </select>
+        <span class="archive-intro">Raporları nasıl görüntülemek istersiniz?</span>
+        <div class="archive-mode-group">
+            <button type="button" class="archive-mode-btn active" id="archiveLatestBtn">
+                <span class="amb-title">📄 Son Dönem</span>
+                <span class="amb-desc">En son yayımlanan raporu doğrudan açar</span>
+            </button>
+            <button type="button" class="archive-mode-btn" id="bankSitesBtn">
+                <span class="amb-title">🏢 Banka Websiteleri</span>
+                <span class="amb-desc">Bankanın kendi rapor sayfasına gider</span>
+            </button>
+            <div class="archive-mode-btn" id="archivePeriodGroup">
+                <span class="amb-title">📅 Geçmiş Dönem</span>
+                <span class="amb-desc">Belirli bir yıl/çeyreğin raporunu gösterir</span>
+                <div class="archive-period-selects">
+                    <select class="archive-select" id="archiveYear">
+                        <option value="">Yıl</option>
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                        <option value="2023">2023</option>
+                        <option value="2022">2022</option>
+                        <option value="2021">2021</option>
+                    </select>
+                    <select class="archive-select" id="archiveQuarter">
+                        <option value="">Çeyrek</option>
+                        <option value="1C">1. Çeyrek</option>
+                        <option value="2C">2. Çeyrek</option>
+                        <option value="3C">3. Çeyrek</option>
+                        <option value="4C">4. Çeyrek</option>
+                    </select>
+                </div>
+            </div>
+        </div>
         <span class="archive-hint" id="archiveHint"></span>
     </div>
 
@@ -1509,6 +1555,7 @@
         var archiveQuarterSel = document.getElementById('archiveQuarter');
         var archiveHint = document.getElementById('archiveHint');
         var bankSitesBtn = document.getElementById('bankSitesBtn');
+        var archivePeriodGroup = document.getElementById('archivePeriodGroup');
         var QUARTER_LABEL = { '1C': '1Ç', '2C': '2Ç', '3C': '3Ç', '4C': '4Ç' };
 
         function getActionsEl(card) { return card.querySelector('.split-actions'); }
@@ -1530,6 +1577,7 @@
         function resetModeButtons() {
             archiveLatestBtn.classList.remove('active');
             bankSitesBtn.classList.remove('active');
+            archivePeriodGroup.classList.remove('active');
             archiveYearSel.classList.remove('archive-active');
             archiveQuarterSel.classList.remove('archive-active');
         }
@@ -1586,6 +1634,7 @@
             });
             var bulunanBanka = bulunanBankalar.size;
             resetModeButtons();
+            archivePeriodGroup.classList.add('active');
             archiveYearSel.classList.add('archive-active');
             archiveQuarterSel.classList.add('archive-active');
             archiveHint.textContent = bulunanBanka + ' bankada rapor bulundu';
