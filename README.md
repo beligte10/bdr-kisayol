@@ -65,7 +65,26 @@ python3 bdr_indir.py --yil 2026 --sadece-ilk20   # yalnız ilk 20 banka
 python3 bdr_indir.py --yil 2026 --bankalar "Takasbank" "Odeabank"   # seçili bankalar
 ```
 
-Ölçülen boyutlar: ortalama ~2,3 MB/PDF. Son 5 yıl (2022–2026) tüm bankalar ≈ 1.634 rapor ≈ **3,7 GB**; yalnızca ilk 20 banka ≈ **1,8 GB**. Bu boyutlar GitHub deposu için uygun değildir (GitHub 1 GB üzerini önermez); arşiv barındırılacaksa Cloudflare R2 (10 GB ücretsiz, indirme trafiği ücretsiz), kurumsal ağ sürücüsü veya SharePoint tercih edilmelidir. Geçmiş dönem arşivi şu an **askıya alınmıştır**; script hazır durumda bekler. Panoda kullanılan son dönem PDF'leri (23 banka, ~62 MB) `raporlar/` klasöründe depoda tutulmaktadır — bu boyut GitHub için sorun değildir.
+Ölçülen boyutlar: ortalama ~2,3 MB/PDF. Bu boyutlar GitHub deposu için uygun değildir (GitHub 1 GB üzerini önermez), bu yüzden arşiv **Cloudflare R2**'de barındırılır (10 GB ücretsiz, indirme trafiği ücretsiz). Panoda kullanılan son dönem PDF'leri (23 banka, ~62 MB) ayrıca `raporlar/` klasöründe depoda tutulur — bu boyut GitHub için sorun değildir.
+
+### Geçmiş dönem arşivi (R2)
+
+Yayımdaki kapsam: **2014-1Ç – 2026-2Ç**, 50 dönem, 66 banka, **4.047 dosya (9,75 GiB)**. Diskteki `BDR-Arsiv/raporlar/` klasörü 2005'e kadar iner, ancak siteye yalnızca 2014 ve sonrası yüklüdür; 2005-2009 dosyaları ücretsiz kota içinde kalmak için R2'den kaldırılmıştır (yerel kopyaları durur, gerekirse tekrar yüklenebilir).
+
+Dosyaların çoğu PDF'tir; 130 kayıt BDDK arşivinde `.docx`/`.xls`/`.tif` gibi başka formatlardadır ve olduğu gibi sunulur.
+
+R2 nesneleri `*.r2.dev` üzerinden değil, bir **Cloudflare Worker** (`bdr-arsiv.bdr-arsiv-worker.workers.dev`) üzerinden servis edilir; `*.r2.dev` alan adları kurumsal ağda TLS el sıkışmasında engelleniyor.
+
+Yükleme ve manifest üretimi:
+
+```bash
+rclone copy BDR-Arsiv/raporlar r2:bdr-arsiv/raporlar --s3-no-check-bucket   # --s3-no-check-bucket: token bucket'a özel
+python3 BDR-Arsiv/manifest_uret.py                                          # arsiv_manifest_min.json üretir
+```
+
+`manifest_uret.py` içindeki `MIN_YIL` sabiti manifestin alt sınırını belirler; R2'ye yüklenmemiş bir yıl manifeste girerse sitede kırık link oluşur. Üretilen JSON, `index.html` içindeki `<script type="application/json" id="arsivManifest">` bloğuna gömülür. Yol tekrarını önlemek için sıkıştırılmış biçimdedir: yol `<dönem>/<banka-slug>-<tip>.<uzantı>` kalıbından türetilir, yalnızca hangi tiplerin bulunduğu (`s`/`k`) ve PDF olmayan istisnalar saklanır (46 KB).
+
+Bilinen boşluklar: HSBC 2008-4Ç / 2020-3Ç ve Bank of America 2016-1Ç arşivleri Deflate64 ile sıkıştırılmıştır (Python `zipfile`, `unzip` ve `ditto` desteklemez); BankPozitif 2025-4Ç dosyası BDDK tarafında bozuk CRC ile gelmektedir.
 
 Toplam **66 banka** — BDDK'nın [Bağımsız Denetim Raporları portalında](https://www.bddk.org.tr/BdrUyg/) listelenen bankaların tamamı.
 
