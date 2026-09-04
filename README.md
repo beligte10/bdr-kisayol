@@ -69,20 +69,26 @@ python3 bdr_indir.py --yil 2026 --bankalar "Takasbank" "Odeabank"   # seçili ba
 
 ### Geçmiş dönem arşivi (R2)
 
-Yayımdaki kapsam: **2014-1Ç – 2026-2Ç**, 50 dönem, 66 banka, **4.047 dosya (9,75 GiB)**. Diskteki `BDR-Arsiv/raporlar/` klasörü 2005'e kadar iner, ancak siteye yalnızca 2014 ve sonrası yüklüdür; 2005-2009 dosyaları ücretsiz kota içinde kalmak için R2'den kaldırılmıştır (yerel kopyaları durur, gerekirse tekrar yüklenebilir).
+Yayımdaki kapsam **kayan bir penceredir: son 10 takvim yılı.** Şu an **2017-1Ç – 2026-2Ç**, 38 dönem, 66 banka. Diskteki `BDR-Arsiv/raporlar/` klasörü 2005'e kadar iner ve hiç budanmaz; siteye yalnızca pencere içindeki dönemler yüklenir. Pencere sabit bir başlangıç yılına değil, arşivdeki en yeni döneme bağlıdır — yeni çeyrek eklendiğinde en eski yıl kendiliğinden düşer, böylece site elle güncellenmeden hep son 10 yılı gösterir ve R2 ücretsiz kotası (10 GB) aşılmaz.
+
+Pencere genişliği `manifest_uret.py` içindeki `PENCERE_YIL` sabitiyle belirlenir; `index.html`'deki yıl seçicisi de sabit liste değil, gömülü manifestten üretilir, dolayısıyla ayrıca güncellenmesi gerekmez.
 
 Dosyaların çoğu PDF'tir; 130 kayıt BDDK arşivinde `.docx`/`.xls`/`.tif` gibi başka formatlardadır ve olduğu gibi sunulur.
 
 R2 nesneleri `*.r2.dev` üzerinden değil, bir **Cloudflare Worker** (`bdr-arsiv.bdr-arsiv-worker.workers.dev`) üzerinden servis edilir; `*.r2.dev` alan adları kurumsal ağda TLS el sıkışmasında engelleniyor.
 
-Yükleme ve manifest üretimi:
+**Çeyreklik bakım akışı:**
 
 ```bash
-rclone copy BDR-Arsiv/raporlar r2:bdr-arsiv/raporlar --s3-no-check-bucket   # --s3-no-check-bucket: token bucket'a özel
-python3 BDR-Arsiv/manifest_uret.py                                          # arsiv_manifest_min.json üretir
+python3 BDR-Arsiv/bdr_indir.py --yil 2026     # yeni raporları BDDK'dan indir
+python3 BDR-Arsiv/r2_esitle.py                # ne yükleneceğini/sileneceğini göster
+python3 BDR-Arsiv/r2_esitle.py --uygula       # R2'yi pencereye eşitle
+python3 BDR-Arsiv/manifest_uret.py            # arsiv_manifest_min.json üret
 ```
 
-`manifest_uret.py` içindeki `MIN_YIL` sabiti manifestin alt sınırını belirler; R2'ye yüklenmemiş bir yıl manifeste girerse sitede kırık link oluşur. Üretilen JSON, `index.html` içindeki `<script type="application/json" id="arsivManifest">` bloğuna gömülür. Yol tekrarını önlemek için sıkıştırılmış biçimdedir: yol `<dönem>/<banka-slug>-<tip>.<uzantı>` kalıbından türetilir, yalnızca hangi tiplerin bulunduğu (`s`/`k`) ve PDF olmayan istisnalar saklanır (46 KB).
+`r2_esitle.py` iki yönde de çalışır: pencere içinde olup R2'de bulunmayan dönemleri yükler, pencereden düşmüş dönemleri R2'den siler (yerel kopyalar korunur). Silme geri alınamaz olduğu için `--uygula` verilmedikçe yalnızca planı yazdırır. `rclone` çağrılarında `--s3-no-check-bucket` gerekir; API token'ı yalnızca bu bucket'a yetkili olduğundan bucket varlık kontrolü 403 döner.
+
+Üretilen JSON, `index.html` içindeki `<script type="application/json" id="arsivManifest">` bloğuna gömülür. Yol tekrarını önlemek için sıkıştırılmış biçimdedir: yol `<dönem>/<banka-slug>-<tip>.<uzantı>` kalıbından türetilir, yalnızca hangi tiplerin bulunduğu (`s`/`k`) ve PDF olmayan istisnalar saklanır (46 KB).
 
 Bilinen boşluklar: HSBC 2008-4Ç / 2020-3Ç ve Bank of America 2016-1Ç arşivleri Deflate64 ile sıkıştırılmıştır (Python `zipfile`, `unzip` ve `ditto` desteklemez); BankPozitif 2025-4Ç dosyası BDDK tarafında bozuk CRC ile gelmektedir.
 
