@@ -83,7 +83,18 @@ R2 nesneleri `*.r2.dev` üzerinden değil, bir **Cloudflare Worker** (`bdr-arsiv
 
 **Katman 1 — BDDK arşivi (tam otomatik).** `otomatik_tara.py` R2'deki en yeni dönemi ve onu izleyen iki çeyreği tarar; yayımlanmış ama R2'de olmayan her raporu indirip yükler. Ardından manifest R2 listesinden üretilir, `index.html`'e gömülür, `kart_ilerlet.py` R2'ye bakan kart butonlarını yeni döneme taşır ve doğrulama çalışır. Doğrulama geçerse commit + push edilir, Netlify kendiliğinden yayına alır. Bu katman deterministiktir: kaynak BDDK'nın kendi arşivi, dosya adı kalıbı sabit, her belge içerik olarak doğrulanıyor.
 
-**Katman 2 — Banka siteleri (yalnızca bildirir).** `banka_tara.py`, BDDK'nın gecikmesini yakalamak için bankaların kendi sayfalarına bakar. İki yöntem dener: (a) elde duran linkten bir sonraki çeyreğin adresini türetir, (b) rapor sayfasını tarar. Bulduğu her adayı HTTP durumu, content-type ve `%PDF` baytıyla doğrular, sonra bir issue açar. **Hiçbir dosyayı değiştirmez** — Solo/Konsolide eşleşmesini doğrulayamadığı için son kararı insan verir. Kapsamı sınırlıdır (66 bankanın ~30'u; çoğu rapor sayfası JavaScript ile üretiliyor), ama eksiksizliği Katman 1 zaten garanti eder; bu katman yalnızca **erkenlik** kazandırır.
+**Katman 2 — Banka siteleri (erken yakalama).** BDDK, bankaların kendi sitelerinden günler hatta haftalar geç yayımlıyor. `banka_tara.py` bu aralığı kapatır. İki yöntem dener: (a) elde duran linkten bir sonraki çeyreğin adresini türetir (`..._30.06.2026.pdf` → `..._30.09.2026.pdf`) — buradaki Solo/Konsolide bilgisi butonun kendi etiketinden geldiği için kesindir; (b) rapor sayfasını tarar. Her aday HTTP durumu, content-type ve `%PDF` baytıyla doğrulanır.
+
+Bulunan rapor **indirilir**, sonra tipine göre ayrışır:
+
+- **Solo/Konsolide ayrımı etiketten kesin okunabiliyorsa** dosya `raporlar/<dönem>/<slug>-<tip>.pdf` olarak R2'ye yüklenir; manifest yenilenir, pano güncellenir, doğrulama geçerse commit edilir.
+- **Okunamıyorsa** dosya `karantina/` altına konur, siteye **girmez** ve issue ile bildirilir.
+
+Ayrım şu kurala göre yapılır: Türk bankacılığında *"Konsolide Olmayan Finansal Rapor"* **solo** demektir; metinde `konsolide` geçiyor diye konsolide saymak bu işin klasik hatasıdır ve panoda bir kez yaşandı. Sınıflandırıcı önce olumsuzlamayı arar, okuyamazsa bilerek `None` döner — yanlış tip, eksik tipten kötüdür.
+
+Banka sitesinden gelen kopyalar `kaynak_banka.json` içinde işaretlenir. `otomatik_tara.py` bu anahtarları "zaten var" diye atlamaz; BDDK aynı raporu yayımlayınca kendi kopyasıyla değiştirir, böylece arşivin gövdesi tek kaynaklı kalır.
+
+Ölçülen kapsam: bilinen-yayımda bir çeyrekte 66 bankanın 28'inde toplam 49 rapor bulundu; 38'inin tipi kesin, 11'i karantinaya düştü. Kapsam sınırlıdır (çoğu rapor sayfası JavaScript ile üretiliyor), ama eksiksizliği Katman 1 garanti eder — bu katman yalnızca **erkenlik** kazandırır.
 
 **Gereken GitHub Secrets:** `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`. rclone bulutta dosya yerine ortam değişkenleriyle yapılandırılır; kimlik bilgileri diske yazılmaz.
 
@@ -133,7 +144,7 @@ Kaynak notları:
 | `.github/workflows/bdr-otomatik.yml` | Otomatik güncelleme akışı (takvimli) |
 | `bakim/ceyrek_guncelle.py` | Bakımın tek komutu; `--otomatik` bulut modu, `--yil` elle mod |
 | `bakim/otomatik_tara.py` | BDDK'da yeni rapor arar, doğrudan R2'ye yazar (yerel disk gerekmez) |
-| `bakim/banka_tara.py` | Banka sitelerinde erken yayım arar, yalnızca rapor üretir |
+| `bakim/banka_tara.py` | Banka sitelerinde erken yayım arar; tipi kesinse arşive, değilse karantinaya koyar |
 | `bakim/kart_ilerlet.py` | R2'ye bakan kart butonlarını yeni döneme taşır |
 | `bakim/bdr_indir.py` | BDDK arşiv indiricisi |
 | `bakim/r2_esitle.py` | R2'yi kayan pencereyle eşitler |

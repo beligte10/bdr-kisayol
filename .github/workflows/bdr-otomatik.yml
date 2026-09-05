@@ -74,25 +74,55 @@ jobs:
     runs-on: ubuntu-latest
     needs: bddk
     permissions:
-      contents: read
+      contents: write
       issues: write
+    env:
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Bankaların sitelerini tara
-        run: python3 bakim/banka_tara.py --markdown /tmp/tarama.md
+      - name: rclone kur
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Banka sitelerini tara ve bulunanları indir
+        run: |
+          python3 bakim/banka_tara.py --markdown /tmp/tarama.md \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.kuru) && '' || '--uygula' }}
+
+      - name: Arşive giren varsa panoyu güncelle
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.kuru) }}
+        run: |
+          git pull --ff-only
+          python3 bakim/ceyrek_guncelle.py --sadece-yayinla
+          if git diff --quiet -- index.html; then
+            echo "index.html değişmedi."
+            exit 0
+          fi
+          git config user.name  "bdr-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Otomatik: banka sitelerinden erken yayımlanan raporlar eklendi
+
+          bakim/banka_tara.py --uygula tarafından bulundu. Yalnızca Solo/Konsolide
+          ayrımı etiketten kesin okunabilen raporlar arşive girer; okunamayanlar
+          karantinaya alınıp issue ile bildirilir."
+          git push
 
       - name: Bulgu varsa issue aç
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if grep -q "^| " /tmp/tarama.md; then
+          if [ -f /tmp/tarama.md ] && grep -q "^| " /tmp/tarama.md; then
             BASLIK="Banka sitelerinde yeni rapor bulundu ($(date +%Y-%m-%d))"
             gh issue create --title "$BASLIK" --body-file /tmp/tarama.md --label otomatik \
               || gh issue create --title "$BASLIK" --body-file /tmp/tarama.md

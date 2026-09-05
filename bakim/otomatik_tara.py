@@ -15,6 +15,7 @@ Kullanım:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -26,6 +27,24 @@ import urllib.parse
 
 CEYREK_AY = {"1C": 3, "2C": 6, "3C": 9, "4C": 12}
 UZAK = "r2:bdr-arsiv/raporlar"
+KAYNAK_DOSYA = "r2:bdr-arsiv/kaynak_banka.json"
+
+
+def banka_kaynakli(gecici: str) -> tuple[list[str], str]:
+    """Banka sitesinden erken alınmış nesnelerin listesi.
+
+    Bu kopyalar geçici vekildir; BDDK aynı raporu yayımlayınca kendi
+    kopyasıyla değiştirilir, böylece arşivin gövdesi tek kaynaklı kalır.
+    """
+    yol = os.path.join(gecici, "kaynak_banka.json")
+    c = subprocess.run(["rclone", "copyto", KAYNAK_DOSYA, yol],
+                       capture_output=True, text=True)
+    if c.returncode != 0 or not os.path.exists(yol):
+        return [], yol
+    try:
+        return json.load(open(yol, encoding="utf-8")), yol
+    except Exception:
+        return [], yol
 
 
 def sonraki_donem(donem: str) -> str:
@@ -67,14 +86,18 @@ def main():
 
     eklenen, denenen = [], 0
     with tempfile.TemporaryDirectory() as gecici:
+        vekiller, vekil_yolu = banka_kaynakli(gecici)
+        if vekiller:
+            print(f"banka sitesinden gelen vekil kopya: {len(vekiller)}\n", flush=True)
         for donem in hedefler:
             yil, ce = donem.split("-")
             ay = CEYREK_AY[ce]
             for ad, kod in BANKALAR.items():
                 for tip in ("SOLO", "KONSOLIDE"):
                     taban = f"{donem}/{slug(ad)}-{tip.lower()}"
-                    if any(n.startswith(taban + ".") for n in nesneler):
-                        continue                     # zaten yayımda
+                    vekil = [k for k in vekiller if k.startswith("raporlar/" + taban + ".")]
+                    if any(n.startswith(taban + ".") for n in nesneler) and not vekil:
+                        continue                     # BDDK kopyası zaten yayımda
                     denenen += 1
                     dosya = f"BDREki-{kod}-{tip}-{yil}-{ay:02d}.zip"
                     ham = indir(BDDK + urllib.parse.quote(dosya))
@@ -92,8 +115,17 @@ def main():
                     if args.uygula:
                         subprocess.run(["rclone", "copyto", yerel, f"{UZAK}/{anahtar}",
                                         "--s3-no-check-bucket"], check=True)
+                        for k in vekil:
+                            vekiller.remove(k)       # artık BDDK kopyası duruyor
                     eklenen.append((anahtar, len(belge)))
-                    print(f"  + {anahtar}  ({len(belge)/1048576:.1f} MB)", flush=True)
+                    isaret = " (banka kopyasının yerine)" if vekil else ""
+                    print(f"  + {anahtar}  ({len(belge)/1048576:.1f} MB){isaret}", flush=True)
+
+        if args.uygula:
+            json.dump(vekiller, open(vekil_yolu, "w", encoding="utf-8"),
+                      ensure_ascii=False, indent=1)
+            subprocess.run(["rclone", "copyto", vekil_yolu, KAYNAK_DOSYA,
+                            "--s3-no-check-bucket"], check=True)
 
     print(f"\ndenenen kombinasyon : {denenen}")
     print(f"yeni rapor          : {len(eklenen)}")

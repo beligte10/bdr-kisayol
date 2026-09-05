@@ -118,9 +118,26 @@ def main():
                     help="indirilecek yıl(lar), ör. --yil 2026 (elle mod)")
     ap.add_argument("--otomatik", action="store_true",
                     help="yerel arşiv yerine R2'yi kaynak al (GitHub Actions modu)")
+    ap.add_argument("--sadece-yayinla", action="store_true", dest="sadece_yayinla",
+                    help="tarama yapmadan R2'deki hali panoya yansıt ve doğrula")
     ap.add_argument("--uygula", action="store_true",
                     help="indir/yükle/sil/göm adımlarını gerçekten çalıştır")
     args = ap.parse_args()
+    if args.sadece_yayinla:
+        # R2'ye başka bir adım (ör. banka_tara.py) yazmış olabilir; burada
+        # yalnızca panoyu R2'deki güncel halle eşitleyip doğruluyoruz.
+        baslik(1, "Manifesti R2'den üret")
+        adim("manifest_uret.py", "--kaynak", "r2")
+        baslik(2, "Manifesti index.html'e göm")
+        eski, yeni = manifesti_göm()
+        print(f"gömülü manifest: {eski/1024:.0f} KB -> {yeni/1024:.0f} KB")
+        baslik(3, "R2'ye bakan kart butonlarını ilerlet")
+        adim("kart_ilerlet.py", "--uygula")
+        baslik(4, "Doğrula")
+        if not dogrula():
+            sys.exit("\nDoğrulama başarısız — değişiklik yayına alınmamalı.")
+        return
+
     if not args.otomatik and not args.yil:
         ap.error("--yil gerekli (ya da --otomatik kullanın)")
     yillar = [str(y) for y in (args.yil or [])]
