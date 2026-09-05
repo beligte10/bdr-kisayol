@@ -54,7 +54,7 @@ Bu durum yalnızca **2026 1.-2. çeyrek** BDDK verisini yansıtır; bir bankanı
 
 > **Önemli — bakım gerektirir:** Kendi sitesinden çekilen 43 bankanın PDF adresleri döneme özeldir (içlerinde `31_03_2026` gibi tarihler ve bankaya özel ID'ler geçer) ve tahmin edilebilir bir kalıpları yoktur. Banka yeni çeyrek raporunu yayımladığında link eskiyip **eski çeyreğin PDF'ini göstermeye devam eder**. Bu yüzden çeyrek başlarında (Şubat / Mayıs / Ağustos / Kasım) linklerin yenilenmesi gerekir. Güncelleme sırasında ilgili raporlara [BDDK portalından](https://www.bddk.org.tr/BdrUyg/) veya bankanın kendi sitesinden ulaşılabilir.
 
-### Arşiv scripti (BDR-Arsiv/bdr_indir.py)
+### Arşiv scripti (`bakim/bdr_indir.py`)
 
 BDDK'nın düzenli dosya adı kalıbını (`BDREki-{bankakodu}-{SOLO|KONSOLIDE}-{yıl}-{ay}.zip`) kullanarak seçilen dönemlerin tüm raporlarını indirir, zip içinden PDF'i çıkarır ve `raporlar/<yıl>-<çeyrek>/<banka>-<tip>.pdf` şeklinde diziler; ayrıca `manifest.json` üretir. 66 bankanın BDDK kodları script içinde gömülüdür. Yeniden çalıştırıldığında mevcut dosyaları atlar (kesintiden devam eder) ve BDDK'yı yormamak için istekler arasında bekler.
 
@@ -77,18 +77,18 @@ Dosyaların çoğu PDF'tir; 130 kayıt BDDK arşivinde `.docx`/`.xls`/`.tif` gib
 
 R2 nesneleri `*.r2.dev` üzerinden değil, bir **Cloudflare Worker** (`bdr-arsiv.bdr-arsiv-worker.workers.dev`) üzerinden servis edilir; `*.r2.dev` alan adları kurumsal ağda TLS el sıkışmasında engelleniyor.
 
-**Çeyreklik bakım akışı:**
+**Çeyreklik bakım — tek komut:**
 
 ```bash
-python3 BDR-Arsiv/bdr_indir.py --yil 2026     # yeni raporları BDDK'dan indir
-python3 BDR-Arsiv/r2_esitle.py                # ne yükleneceğini/sileneceğini göster
-python3 BDR-Arsiv/r2_esitle.py --uygula       # R2'yi pencereye eşitle
-python3 BDR-Arsiv/manifest_uret.py            # arsiv_manifest_min.json üret
+python3 bakim/ceyrek_guncelle.py --yil 2026            # ne olacağını göster
+python3 bakim/ceyrek_guncelle.py --yil 2026 --uygula   # uygula
 ```
 
-`r2_esitle.py` iki yönde de çalışır: pencere içinde olup R2'de bulunmayan dönemleri yükler, pencereden düşmüş dönemleri R2'den siler (yerel kopyalar korunur). Silme geri alınamaz olduğu için `--uygula` verilmedikçe yalnızca planı yazdırır. `rclone` çağrılarında `--s3-no-check-bucket` gerekir; API token'ı yalnızca bu bucket'a yetkili olduğundan bucket varlık kontrolü 403 döner.
+Sırasıyla: BDDK'dan indirir → R2'yi pencereyle eşitler → manifesti üretir → **`index.html`'e gömer** → doğrular (div dengesi, sabit yıl seçeneği kalmamış mı, 3.166 arşiv linkinin R2 karşılığı, 26 doğrudan linkin açılıp açılmadığı). Doğrulama düşerse commit önerilmez. Manifesti elle kopyalayıp yapıştırma adımı sistemdeki en hata açık yerdi; 4. adım onu ortadan kaldırır.
 
-Üretilen JSON, `index.html` içindeki `<script type="application/json" id="arsivManifest">` bloğuna gömülür. Yol tekrarını önlemek için sıkıştırılmış biçimdedir: yol `<dönem>/<banka-slug>-<tip>.<uzantı>` kalıbından türetilir, yalnızca hangi tiplerin bulunduğu (`s`/`k`) ve PDF olmayan istisnalar saklanır (46 KB).
+Alt scriptler ayrı ayrı da çalıştırılabilir (`bakim/bdr_indir.py`, `bakim/r2_esitle.py`, `bakim/manifest_uret.py`). `r2_esitle.py` iki yönde de çalışır: pencere içinde olup R2'de bulunmayan dönemleri yükler, pencereden düşmüş dönemleri R2'den siler (yerel kopyalar korunur). Silme geri alınamaz olduğu için `--uygula` verilmedikçe yalnızca planı yazdırır. `rclone` çağrılarında `--s3-no-check-bucket` gerekir; API token'ı yalnızca bu bucket'a yetkili olduğundan bucket varlık kontrolü 403 döner.
+
+Üretilen JSON, `index.html` içindeki `<script type="application/json" id="arsivManifest">` bloğuna gömülür (`ceyrek_guncelle.py` bunu kendisi yapar). Yol tekrarını önlemek için sıkıştırılmış biçimdedir: yol `<dönem>/<banka-slug>-<tip>.<uzantı>` kalıbından türetilir, yalnızca hangi tiplerin bulunduğu (`s`/`k`) ve PDF olmayan istisnalar saklanır (46 KB).
 
 Bilinen boşluklar: HSBC 2008-4Ç / 2020-3Ç ve Bank of America 2016-1Ç arşivleri Deflate64 ile sıkıştırılmıştır (Python `zipfile`, `unzip` ve `ditto` desteklemez); BankPozitif 2025-4Ç dosyası BDDK tarafında bozuk CRC ile gelmektedir.
 
@@ -119,7 +119,18 @@ Kaynak notları:
 
 | Dosya | Açıklama |
 |---|---|
-| `index.html` | Güncel, kullanılan pano — hem doğrudan açmak hem statik hosting (Vercel/Netlify) için kök dosya |
+| `index.html` | Panonun tamamı — HTML, CSS, JS, logolar ve arşiv manifesti tek dosyada (~1,2 MB) |
+| `bakim/ceyrek_guncelle.py` | Çeyreklik bakımın tek komutu (indir → eşitle → üret → göm → doğrula) |
+| `bakim/bdr_indir.py` | BDDK arşiv indiricisi |
+| `bakim/r2_esitle.py` | R2'yi kayan pencereyle eşitler |
+| `bakim/manifest_uret.py` | Sıkıştırılmış manifesti üretir; `PENCERE_YIL` burada |
+| `bakim/ayarlar.py` | Ortak yollar; arşivin diskteki yerini `BDR_ARSIV` ile değiştirebilirsiniz |
+| `worker/` | R2 nesnelerini servis eden Cloudflare Worker (`wrangler deploy`) |
+| `stratejilogo.png` | Başlıktaki logonun kaynağı (sayfaya base64 gömülü) |
+
+Rapor PDF'leri depoda tutulmaz; tamamı R2'den servis edilir. 15 GB'lık ham arşiv `~/Desktop/BDR-Arsiv/raporlar/` altındadır ve `.gitignore` ile dışarıda bırakılmıştır.
+
+**Logolar:** 87 kart görselinin 67'si benzersizdir ("İlk 20 Banka" sekmesi 20 kartı tekrarlar). Her görsel `#logoHarita` JSON bloğunda bir kez saklanır, `<img data-lg="...">` etiketlerine çalışma anında bağlanır. Tekilleştirme + kayıpsız PNG yeniden sıkıştırma dosyayı 1.747 KB'dan 1.200 KB'a indirdi; görseller piksel piksel aynıdır.
 
 ## GitHub + Netlify / Vercel'de yayınlama
 

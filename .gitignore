@@ -1,1 +1,5 @@
 .DS_Store
+
+# 15 GB arşiv depoya girmez; bakim/ayarlar.py dışarıdan bulur (~/Desktop/BDR-Arsiv)
+raporlar/
+node_modules/
