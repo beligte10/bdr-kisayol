@@ -77,7 +77,17 @@ Dosyaların çoğu PDF'tir; 130 kayıt BDDK arşivinde `.docx`/`.xls`/`.tif` gib
 
 R2 nesneleri `*.r2.dev` üzerinden değil, bir **Cloudflare Worker** (`bdr-arsiv.bdr-arsiv-worker.workers.dev`) üzerinden servis edilir; `*.r2.dev` alan adları kurumsal ağda TLS el sıkışmasında engelleniyor.
 
-**Çeyreklik bakım — tek komut:**
+### Otomatik güncelleme (GitHub Actions)
+
+`.github/workflows/bdr-otomatik.yml` iki katmanlı çalışır. Takvim: raporların yayımlandığı aylarda (Şubat/Mayıs/Ağustos/Kasım) her gün 09:00 TR, diğer aylarda pazartesileri. `workflow_dispatch` ile elle de tetiklenebilir (`kuru: true` hiçbir şey yazmadan denemek için).
+
+**Katman 1 — BDDK arşivi (tam otomatik).** `otomatik_tara.py` R2'deki en yeni dönemi ve onu izleyen iki çeyreği tarar; yayımlanmış ama R2'de olmayan her raporu indirip yükler. Ardından manifest R2 listesinden üretilir, `index.html`'e gömülür, `kart_ilerlet.py` R2'ye bakan kart butonlarını yeni döneme taşır ve doğrulama çalışır. Doğrulama geçerse commit + push edilir, Netlify kendiliğinden yayına alır. Bu katman deterministiktir: kaynak BDDK'nın kendi arşivi, dosya adı kalıbı sabit, her belge içerik olarak doğrulanıyor.
+
+**Katman 2 — Banka siteleri (yalnızca bildirir).** `banka_tara.py`, BDDK'nın gecikmesini yakalamak için bankaların kendi sayfalarına bakar. İki yöntem dener: (a) elde duran linkten bir sonraki çeyreğin adresini türetir, (b) rapor sayfasını tarar. Bulduğu her adayı HTTP durumu, content-type ve `%PDF` baytıyla doğrular, sonra bir issue açar. **Hiçbir dosyayı değiştirmez** — Solo/Konsolide eşleşmesini doğrulayamadığı için son kararı insan verir. Kapsamı sınırlıdır (66 bankanın ~30'u; çoğu rapor sayfası JavaScript ile üretiliyor), ama eksiksizliği Katman 1 zaten garanti eder; bu katman yalnızca **erkenlik** kazandırır.
+
+**Gereken GitHub Secrets:** `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`. rclone bulutta dosya yerine ortam değişkenleriyle yapılandırılır; kimlik bilgileri diske yazılmaz.
+
+**Çeyreklik bakım — elle, tek komut:**
 
 ```bash
 python3 bakim/ceyrek_guncelle.py --yil 2026            # ne olacağını göster
@@ -120,7 +130,11 @@ Kaynak notları:
 | Dosya | Açıklama |
 |---|---|
 | `index.html` | Panonun tamamı — HTML, CSS, JS, logolar ve arşiv manifesti tek dosyada (~1,2 MB) |
-| `bakim/ceyrek_guncelle.py` | Çeyreklik bakımın tek komutu (indir → eşitle → üret → göm → doğrula) |
+| `.github/workflows/bdr-otomatik.yml` | Otomatik güncelleme akışı (takvimli) |
+| `bakim/ceyrek_guncelle.py` | Bakımın tek komutu; `--otomatik` bulut modu, `--yil` elle mod |
+| `bakim/otomatik_tara.py` | BDDK'da yeni rapor arar, doğrudan R2'ye yazar (yerel disk gerekmez) |
+| `bakim/banka_tara.py` | Banka sitelerinde erken yayım arar, yalnızca rapor üretir |
+| `bakim/kart_ilerlet.py` | R2'ye bakan kart butonlarını yeni döneme taşır |
 | `bakim/bdr_indir.py` | BDDK arşiv indiricisi |
 | `bakim/r2_esitle.py` | R2'yi kayan pencereyle eşitler |
 | `bakim/manifest_uret.py` | Sıkıştırılmış manifesti üretir; `PENCERE_YIL` burada |

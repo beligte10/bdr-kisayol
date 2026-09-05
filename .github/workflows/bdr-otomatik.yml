@@ -1,0 +1,101 @@
+name: BDR otomatik güncelleme
+
+# Akıllı takvim: raporların yayımlandığı aylarda (Şubat/Mayıs/Ağustos/Kasım)
+# her gün, diğer aylarda haftada bir. Saatler UTC; 06:00 UTC = 09:00 TR.
+on:
+  schedule:
+    - cron: "0 6 * 2,5,8,11 *"        # yayın ayları: her gün
+    - cron: "0 6 * 1,3,4,6,7,9,10,12 1"  # diğer aylar: pazartesi
+  workflow_dispatch:                   # elle tetikleme
+    inputs:
+      kuru:
+        description: "Kuru çalıştırma (hiçbir şey yazma)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: bdr-otomatik
+  cancel-in-progress: false
+
+jobs:
+  bddk:
+    name: BDDK arşivi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      # rclone'u dosya yerine ortam değişkeniyle yapılandırıyoruz; böylece
+      # kimlik bilgileri diske yazılmıyor. Bucket'a özel token bucket varlık
+      # kontrolünde 403 döndüğü için no_check_bucket şart.
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: rclone kur
+        run: |
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          rclone version | head -1
+
+      - name: R2 erişimini doğrula
+        run: rclone lsf r2:bdr-arsiv/raporlar --dirs-only | tail -3
+
+      - name: Yeni raporları bul, yükle, panoyu güncelle
+        run: |
+          python3 bakim/ceyrek_guncelle.py --otomatik \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.kuru) && '' || '--uygula' }}
+
+      - name: Değişiklik varsa yayına al
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.kuru) }}
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "index.html değişmedi — yeni rapor yok."
+            exit 0
+          fi
+          git config user.name  "bdr-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Otomatik: BDDK'da yeni yayımlanan raporlar eklendi
+
+          bakim/ceyrek_guncelle.py --otomatik tarafından üretildi.
+          Doğrulama (div dengesi, manifest-R2 örtüşmesi, doğrudan linkler) geçti."
+          git push
+
+  bankalar:
+    name: Banka siteleri
+    runs-on: ubuntu-latest
+    needs: bddk
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bankaların sitelerini tara
+        run: python3 bakim/banka_tara.py --markdown /tmp/tarama.md
+
+      - name: Bulgu varsa issue aç
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if grep -q "^| " /tmp/tarama.md; then
+            BASLIK="Banka sitelerinde yeni rapor bulundu ($(date +%Y-%m-%d))"
+            gh issue create --title "$BASLIK" --body-file /tmp/tarama.md --label otomatik \
+              || gh issue create --title "$BASLIK" --body-file /tmp/tarama.md
+          else
+            echo "Yeni yayım bulunamadı — issue açılmadı."
+          fi

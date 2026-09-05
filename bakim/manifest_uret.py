@@ -15,10 +15,13 @@ hangi tiplerin bulunduğu ("s"=solo, "k"=konsolide) saklanıyor; uzantı varsay�
    "a":    {"Banka Adı": {"2021-1C": "sk", ...}, ...},
    "ext":  {"2005-1C/ziraat-bankasi-solo": "doc", ...}}
 """
+import argparse
 import json
 import os
+import subprocess
+import sys
 
-from ayarlar import ARSIV_KOK as KOK
+from ayarlar import ARSIV_KOK as KOK, MANIFEST_MIN
 
 AD_ESLESTIRME = {
     "kuveyt-turk": "Kuveyt Türk", "vakif-katilim": "Vakıf Katılım",
@@ -74,11 +77,55 @@ def pencere_alt_siniri(donemler) -> int:
     return en_yeni - PENCERE_YIL + 1
 
 
-def main():
+def _diskten() -> dict[str, str]:
+    """Yerel manifest.json'dan 'dönem/slug/tip' -> göreli yol sözlüğü."""
     manifest = json.load(open(os.path.join(KOK, "manifest.json"), encoding="utf-8"))
+    return {k: v for k, v in manifest.items()
+            if os.path.exists(os.path.join(KOK, v))}
+
+
+def _r2den() -> dict[str, str]:
+    """R2 nesne listesinden aynı sözlüğü kurar.
+
+    Site R2'den beslendiği için gerçeğin kaynağı R2'dir; manifesti oradan
+    üretmek hem yerel diske bağımlılığı kaldırır (GitHub Actions'ta disk yok)
+    hem de manifestin sitede karşılığı olmayan bir kayıt taşımasını imkânsız
+    kılar. Nesne anahtarı zaten 'raporlar/<dönem>/<slug>-<tip>.<uzantı>'.
+    """
+    sonuc = subprocess.run(
+        ["rclone", "lsf", "r2:bdr-arsiv/raporlar", "--recursive", "--files-only"],
+        capture_output=True, text=True)
+    if sonuc.returncode != 0:
+        sys.exit(f"rclone listesi alınamadı:\n{sonuc.stderr.strip()}")
+    kayitlar = {}
+    for satir in sonuc.stdout.splitlines():
+        satir = satir.strip()
+        if not satir or "/" not in satir:
+            continue
+        donem, dosya = satir.split("/", 1)
+        govde = dosya.rsplit(".", 1)[0]
+        if govde.endswith("-solo"):
+            slug, tip = govde[:-5], "solo"
+        elif govde.endswith("-konsolide"):
+            slug, tip = govde[:-10], "konsolide"
+        else:
+            continue
+        kayitlar[f"{donem}/{slug}/{tip}"] = "raporlar/" + satir
+    return kayitlar
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--kaynak", choices=("r2", "disk"), default="r2",
+                    help="manifestin üretileceği kaynak (varsayılan: r2)")
+    args = ap.parse_args()
+
+    manifest = _r2den() if args.kaynak == "r2" else _diskten()
+    if not manifest:
+        sys.exit("kaynak boş — manifest üretilemedi")
 
     slug_map, a, ext = {}, {}, {}
-    eslesmeyen, kayip = set(), 0
+    eslesmeyen = set()
 
     min_yil = pencere_alt_siniri(k.split("/")[0] for k in manifest)
 
@@ -89,10 +136,6 @@ def main():
         ad = AD_ESLESTIRME.get(slug)
         if not ad:
             eslesmeyen.add(slug)
-            continue
-        # manifest eski/silinmiş kayıt taşıyabilir; yalnızca diskte duranı yaz
-        if not os.path.exists(os.path.join(KOK, yol)):
-            kayip += 1
             continue
         slug_map[ad] = slug
         uzanti = yol.rsplit(".", 1)[-1].lower()
@@ -106,15 +149,16 @@ def main():
         for d in a[ad]:
             a[ad][d] = "".join(ch for ch in "sk" if ch in a[ad][d])
 
-    hedef = os.path.join(KOK, "arsiv_manifest_min.json")
+    hedef = MANIFEST_MIN
+    os.makedirs(os.path.dirname(hedef), exist_ok=True)
     with open(hedef, "w", encoding="utf-8") as f:
         json.dump({"slug": slug_map, "a": a, "ext": ext}, f,
                   ensure_ascii=False, separators=(",", ":"))
 
+    print(f"kaynak          : {args.kaynak}")
     donemler = sorted({d for v in a.values() for d in v})
     print(f"pencere         : son {PENCERE_YIL} yıl (>= {min_yil})")
     print(f"eşleşmeyen slug : {eslesmeyen or 'yok'}")
-    print(f"diskte yok      : {kayip}")
     print(f"banka           : {len(a)}")
     print(f"dönem           : {len(donemler)}  ({donemler[0]} .. {donemler[-1]})")
     print(f"pdf olmayan     : {len(ext)}")

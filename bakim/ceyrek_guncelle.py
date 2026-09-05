@@ -114,12 +114,36 @@ def dogrula() -> bool:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--yil", nargs="+", type=int, required=True,
-                    help="indirilecek yıl(lar), ör. --yil 2026")
+    ap.add_argument("--yil", nargs="+", type=int,
+                    help="indirilecek yıl(lar), ör. --yil 2026 (elle mod)")
+    ap.add_argument("--otomatik", action="store_true",
+                    help="yerel arşiv yerine R2'yi kaynak al (GitHub Actions modu)")
     ap.add_argument("--uygula", action="store_true",
                     help="indir/yükle/sil/göm adımlarını gerçekten çalıştır")
     args = ap.parse_args()
-    yillar = [str(y) for y in args.yil]
+    if not args.otomatik and not args.yil:
+        ap.error("--yil gerekli (ya da --otomatik kullanın)")
+    yillar = [str(y) for y in (args.yil or [])]
+
+    if args.otomatik:
+        # Bulutta yerel 15 GB arşiv yok: yeni raporlar BDDK'dan doğrudan R2'ye
+        # yazılır, manifest de R2 listesinden üretilir.
+        baslik(1, "BDDK'da yeni rapor var mı")
+        adim("otomatik_tara.py", *(["--uygula"] if args.uygula else []))
+        baslik(2, "Manifesti R2'den üret")
+        adim("manifest_uret.py", "--kaynak", "r2")
+        if not args.uygula:
+            print("\nKURU ÇALIŞTIRMA — index.html değiştirilmedi")
+            return
+        baslik(3, "Manifesti index.html'e göm")
+        eski, yeni = manifesti_göm()
+        print(f"gömülü manifest: {eski/1024:.0f} KB -> {yeni/1024:.0f} KB")
+        baslik(4, "R2'ye bakan kart butonlarını ilerlet")
+        adim("kart_ilerlet.py", "--uygula")
+        baslik(5, "Doğrula")
+        if not dogrula():
+            sys.exit("\nDoğrulama başarısız — değişiklik yayına alınmamalı.")
+        return
 
     if not args.uygula:
         print("KURU ÇALIŞTIRMA — hiçbir şey değiştirilmeyecek\n")
