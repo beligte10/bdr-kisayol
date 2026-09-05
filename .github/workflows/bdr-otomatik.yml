@@ -51,7 +51,7 @@ jobs:
       - name: Yeni raporları bul, yükle, panoyu güncelle
         run: |
           python3 bakim/ceyrek_guncelle.py --otomatik \
-            ${{ (github.event_name == 'workflow_dispatch' && inputs.kuru) && '' || '--uygula' }}
+            ${{ !(github.event_name == 'workflow_dispatch' && inputs.kuru) && '--uygula' || '' }}
 
       - name: Değişiklik varsa yayına al
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.kuru) }}
@@ -96,12 +96,13 @@ jobs:
       - name: Banka sitelerini tara ve bulunanları indir
         run: |
           python3 bakim/banka_tara.py --markdown /tmp/tarama.md \
-            ${{ (github.event_name == 'workflow_dispatch' && inputs.kuru) && '' || '--uygula' }}
+            ${{ !(github.event_name == 'workflow_dispatch' && inputs.kuru) && '--uygula' || '' }}
 
       - name: Arşive giren varsa panoyu güncelle
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.kuru) }}
         run: |
-          git pull --ff-only
+          git fetch origin main
+          git checkout -B main origin/main
           python3 bakim/ceyrek_guncelle.py --sadece-yayinla
           if git diff --quiet -- index.html; then
             echo "index.html değişmedi."
