@@ -617,6 +617,16 @@ body.dark .filter-bar b { color: var(--kt-light); }
   .topbar { grid-template-columns: 1fr auto; grid-template-areas: "brand mode" "title title" "sub sub" "search search"; row-gap: 4px; padding: 10px 14px; } }
 @media (max-width: 480px) { .topbar { padding: 10px 14px; } .topbar h1 { font-size: 15px; } .tab-btn { font-size: 11.5px; padding: 0 9px; } }
 
+
+/* Arama kutusu: rapor görüntüleme seçeneklerinin altında, açık zeminde */
+.search-row { max-width: 1180px; margin: 14px auto 0; padding: 0 20px; }
+.search-row .search-wrap { max-width: 420px; margin: 0 auto; }
+.search-row .search-wrap input { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px 9px 36px; font-size: 13px; }
+.search-row .search-wrap input::placeholder { color: var(--text-muted); }
+.search-row .search-wrap input:focus { background: var(--card-bg); border-color: var(--navy); box-shadow: 0 0 0 3px rgba(98,174,65,0.18); }
+.search-row .search-icon { color: var(--text-muted); }
+.topbar { grid-template-columns: auto 1fr auto; grid-template-areas: "brand title mode" "brand sub mode"; }
+@media (max-width: 768px) { .topbar { grid-template-columns: 1fr auto; grid-template-areas: "brand mode" "title title" "sub sub"; } .search-row { padding: 0 14px; } }
 </style>
 </head>
 <body>
@@ -625,11 +635,6 @@ body.dark .filter-bar b { color: var(--kt-light); }
         <div class="topbar-brand"><img data-lg="l0" alt="Kuveyt Türk Strateji"></div>
         <h1>Banka Bağımsız Denetim Raporları</h1>
         <p>Bağımsız Denetim Raporlarına Hızlı Erişim Panosu</p>
-        <div class="search-wrap">
-            <span class="search-icon">&#128269;</span>
-            <input type="text" id="bankSearch" placeholder="Banka ara..." autocomplete="off">
-            <div class="search-results" id="searchResults"></div>
-        </div>
     <button type="button" class="theme-toggle" id="themeToggle" aria-label="Koyu/açık tema"><span class="ti">☾</span><span class="tl">TEMA</span></button>
     </div>
 
@@ -664,6 +669,14 @@ body.dark .filter-bar b { color: var(--kt-light); }
             </div>
         </div>
         <span class="archive-hint" id="archiveHint"></span>
+    </div>
+
+    <div class="search-row">
+        <div class="search-wrap">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" id="bankSearch" placeholder="Banka ara..." autocomplete="off">
+            <div class="search-results" id="searchResults"></div>
+        </div>
     </div>
 
     <nav class="tabs" id="tabs">
