@@ -134,7 +134,7 @@ Kaynak notları:
 
 ### Tema ve görsel dil
 
-Arayüz, Kuveyt Türk **Rakip Analizi** panosunun (KT Strategic Cockpit) görsel diline göre düzenlenmiştir: marka yeşili `--navy: #62AE41` (koyusu `--navy-dark: #457A2E`, açığı `#A1CE8D`), `#e8eef1` zemin, beyaz paneller üzerinde `#d4dde3` ince kenarlık ve 6 px köşe, 60 px düz üst çubuk, segment (hap) biçiminde sekme kontrolü. Üst çubukta **TEMA** düğmesiyle açık/koyu mod değiştirilir; seçim tarayıcıda (`localStorage`) saklanır, yoksa sistem tercihi kullanılır. "STRATEJİ" logosu (`stratejilogo.png`'den gömülü) üst çubuktadır.
+Arayüz, Kuveyt Türk **Rakip Analizi** panosunun (KT Strategic Cockpit) görsel diline göre düzenlenmiştir: marka yeşili `--navy: #62AE41` (koyusu `--navy-dark: #457A2E`, açığı `#A1CE8D`), `#e8eef1` zemin, beyaz paneller üzerinde `#d4dde3` ince kenarlık ve 6 px köşe, 60 px düz üst çubuk, segment (hap) biçiminde sekme kontrolü. Üst çubukta **TEMA** düğmesiyle açık/koyu mod değiştirilir; sayfa her zaman açık temayla başlar; kullanıcı koyu moda geçerse seçim tarayıcıda (`localStorage`) saklanır. "STRATEJİ" logosu (`stratejilogo.png`'den gömülü) üst çubuktadır.
 
 Sekmelerin üstündeki **kapsam şeridi** dört grubun banka sayısını ve güncel dönem rozeti taşıyan kartların oranını çubukla gösterir (açık renk bölüm "2Ç bekleniyor" olanlardır); karta tıklamak ilgili sekmeye geçirir. Değerler sayfa açılırken kartlardan hesaplanır, elle güncelleme gerekmez.
 
