@@ -132,9 +132,11 @@ Kaynak notları:
 
 Üstteki arama kutusuna banka adı yazıldığında, hangi sekmede olursa olsun eşleşen bankalar (logo ve grup adıyla) açılır bir listede gösterilir. Bir sonuca tıklamak (veya Enter'a basmak) ilgili sekmeye geçer ve **yalnızca o bankanın kartını gösterir**; diğer kartlar gizlenir. Üstte "*&lt;Banka&gt; gösteriliyor — Tümünü göster ✕*" çubuğu çıkar; bu düğmeye veya herhangi bir sekmeye basmak filtreyi temizler.
 
-### Marka rengi ve logo
+### Tema ve görsel dil
 
-Üst başlıkta (topbar) ve etkin sekme rengi olarak Kuveyt Türk Strateji kurumsal yeşili kullanılır: `--navy: #016B4E` (koyu tonu `--navy-dark: #013d2c`). "STRATEJİ" logosu (`stratejilogo.png`'den gömülü) başlığın üstünde yer alır.
+Arayüz, Kuveyt Türk **Rakip Analizi** panosunun (KT Strategic Cockpit) görsel diline göre düzenlenmiştir: marka yeşili `--navy: #62AE41` (koyusu `--navy-dark: #457A2E`, açığı `#A1CE8D`), `#e8eef1` zemin, beyaz paneller üzerinde `#d4dde3` ince kenarlık ve 6 px köşe, 60 px düz üst çubuk, segment (hap) biçiminde sekme kontrolü. Üst çubukta **TEMA** düğmesiyle açık/koyu mod değiştirilir; seçim tarayıcıda (`localStorage`) saklanır, yoksa sistem tercihi kullanılır. "STRATEJİ" logosu (`stratejilogo.png`'den gömülü) üst çubuktadır.
+
+Sekmelerin üstündeki **kapsam şeridi** dört grubun banka sayısını ve güncel dönem rozeti taşıyan kartların oranını çubukla gösterir (açık renk bölüm "2Ç bekleniyor" olanlardır); karta tıklamak ilgili sekmeye geçirir. Değerler sayfa açılırken kartlardan hesaplanır, elle güncelleme gerekmez.
 
 ## Dosyalar
 
