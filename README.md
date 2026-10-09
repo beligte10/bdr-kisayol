@@ -107,7 +107,7 @@ python3 bakim/ceyrek_guncelle.py --yil 2026 --uygula   # uygula
 
 Sırasıyla: BDDK'dan indirir → R2'yi pencereyle eşitler → manifesti üretir → **`index.html`'e gömer** → doğrular (div dengesi, sabit yıl seçeneği kalmamış mı, 3.166 arşiv linkinin R2 karşılığı, 26 doğrudan linkin açılıp açılmadığı). Doğrulama düşerse commit önerilmez. Manifesti elle kopyalayıp yapıştırma adımı sistemdeki en hata açık yerdi; 4. adım onu ortadan kaldırır.
 
-Alt scriptler ayrı ayrı da çalıştırılabilir (`bakim/bdr_indir.py`, `bakim/r2_esitle.py`, `bakim/manifest_uret.py`). `r2_esitle.py` iki yönde de çalışır: pencere içinde olup R2'de bulunmayan dönemleri yükler, pencereden düşmüş dönemleri R2'den siler (yerel kopyalar korunur). Silme geri alınamaz olduğu için `--uygula` verilmedikçe yalnızca planı yazdırır. `rclone` çağrılarında `--s3-no-check-bucket` gerekir; API token'ı yalnızca bu bucket'a yetkili olduğundan bucket varlık kontrolü 403 döner.
+Alt scriptler ayrı ayrı da çalıştırılabilir (`bakim/bdr_indir.py`, `bakim/r2_esitle.py`, `bakim/manifest_uret.py`). `r2_esitle.py` iki yönde de çalışır: pencere içinde olup R2'de bulunmayan **dosyaları** yükler (dönem değil dosya bazında karşılaştırır; yalnızca `<banka>-<solo|konsolide>.<uzantı>` adlı dosyalar girer, `.DS_Store` ve bankanın özgün adını taşıyan kopyalar atlanır), pencereden düşmüş dönemleri R2'den siler (yerel kopyalar korunur). Silme geri alınamaz olduğu için `--uygula` verilmedikçe yalnızca planı yazdırır. `rclone` çağrılarında `--s3-no-check-bucket` gerekir; API token'ı yalnızca bu bucket'a yetkili olduğundan bucket varlık kontrolü 403 döner.
 
 Üretilen JSON, `index.html` içindeki `<script type="application/json" id="arsivManifest">` bloğuna gömülür (`ceyrek_guncelle.py` bunu kendisi yapar). Yol tekrarını önlemek için sıkıştırılmış biçimdedir: yol `<dönem>/<banka-slug>-<tip>.<uzantı>` kalıbından türetilir, yalnızca hangi tiplerin bulunduğu (`s`/`k`) ve PDF olmayan istisnalar saklanır (46 KB).
 
@@ -159,15 +159,13 @@ Rapor PDF'leri depoda tutulmaz; tamamı R2'den servis edilir. 15 GB'lık ham ar�
 
 **Logolar:** 87 kart görselinin 67'si benzersizdir ("İlk 20 Banka" sekmesi 20 kartı tekrarlar). Her görsel `#logoHarita` JSON bloğunda bir kez saklanır, `<img data-lg="...">` etiketlerine çalışma anında bağlanır. Tekilleştirme + kayıpsız PNG yeniden sıkıştırma dosyayı 1.747 KB'dan 1.200 KB'a indirdi; görseller piksel piksel aynıdır.
 
-## GitHub + Netlify / Vercel'de yayınlama
+## Yayınlama (GitHub Pages)
 
-Bu klasör, herhangi bir kurulum/derleme gerektirmeyen statik bir sitedir ve [github.com/beligte10/bdr-kisayol](https://github.com/beligte10/bdr-kisayol) reposunda `main` branch'inde tutulur.
+Bu klasör, derleme gerektirmeyen statik bir sitedir ve [github.com/beligte10/bdr-kisayol](https://github.com/beligte10/bdr-kisayol) reposunda `main` branch'inde tutulur. Site **GitHub Pages** ile yayınlanır: <https://beligte10.github.io/bdr-kisayol/>
 
-**Netlify:** Yeni site oluştururken bu repoyu seçin; Base directory, Build command, Publish directory, Functions directory alanlarının hepsini **boş** bırakın (derleme yok, `index.html` kökte). Branch olarak `main` yeterlidir.
+Kurulum (bir kez): GitHub'da *Settings → Pages → Build and deployment* altında *Source: Deploy from a branch*, *Branch: `main`*, *Folder: `/ (root)`* seçilir. Depoda `.nojekyll` bulunur; Jekyll işlemesi kapatılır, `index.html` olduğu gibi servis edilir. Ücretsiz planda Pages yalnızca herkese açık depolarda çalışır.
 
-**Vercel:** [vercel.com](https://vercel.com) üzerinden "Add New… → Project" ile bu GitHub reposunu (veya klasörü sürükle-bırak ile) içe aktarın; Vercel `index.html`'i otomatik olarak kök adreste (`/`) yayınlar.
-
-Değişiklik yaptıktan sonra GitHub'a push edildiğinde her iki servis de otomatik olarak yeniden yayınlar (auto-deploy).
+`main`'e her push'ta Pages kendiliğinden yeniden yayınlar. Actions'ın `GITHUB_TOKEN` ile yaptığı otomatik commit'lerin de yayına yansıdığı, bir sonraki otomatik çalışmada **doğrulanmalıdır**.
 
 ## Güncelleme
 
