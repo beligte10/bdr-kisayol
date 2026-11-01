@@ -2,8 +2,13 @@ name: BDR otomatik güncelleme
 
 # Akıllı takvim: raporların yayımlandığı aylarda (Şubat/Mayıs/Ağustos/Kasım)
 # her gün, diğer aylarda haftada bir. Saatler UTC; 06:00 UTC = 09:00 TR.
+#
+# Geçici takvim: 2026-11-02 .. 2026-12-01 arasında yalnızca hafta içi her gün
+# 17:00 TR (14:00 UTC) çalışır. Bu aralıkta akıllı takvim "kapı" işiyle
+# susturulur; 2026-12-01'den sonra akıllı takvim kendiliğinden geri döner.
 on:
   schedule:
+    - cron: "0 14 * * 1-5"            # geçici: hafta içi 17:00 TR
     - cron: "0 6 * 2,5,8,11 *"        # yayın ayları: her gün
     - cron: "0 6 * 1,3,4,6,7,9,10,12 1"  # diğer aylar: pazartesi
   workflow_dispatch:                   # elle tetikleme
@@ -18,8 +23,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  kapi:
+    name: Takvim kapısı
+    runs-on: ubuntu-latest
+    outputs:
+      calis: ${{ steps.k.outputs.calis }}
+    steps:
+      - id: k
+        env:
+          TAKVIM: ${{ github.event.schedule }}
+        run: |
+          BUGUN=$(date -u +%Y%m%d)
+          SON=20261201   # geçici takvimin son günü
+          calis=true
+          if [ "$TAKVIM" = "0 14 * * 1-5" ] && [ "$BUGUN" -gt "$SON" ]; then calis=false; fi
+          if [ -n "$TAKVIM" ] && [ "$TAKVIM" != "0 14 * * 1-5" ] && [ "$BUGUN" -le "$SON" ]; then calis=false; fi
+          echo "takvim='$TAKVIM' bugün=$BUGUN çalış=$calis"
+          echo "calis=$calis" >> "$GITHUB_OUTPUT"
+
   bddk:
     name: BDDK arşivi
+    needs: kapi
+    if: ${{ needs.kapi.outputs.calis == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
