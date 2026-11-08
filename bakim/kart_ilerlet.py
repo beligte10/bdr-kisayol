@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""R2'ye bakan kart butonlarını arşivdeki en yeni döneme ilerletir.
+"""Kart butonlarını arşivdeki en yeni döneme ilerletir, bekleme rozetlerini yönetir.
 
 BDDK katmanı arşivi büyütür, ama kartın ön yüzü (dönem rozeti ve Solo/Konsolide
-butonlarının adresi) ayrı bir bilgidir. Butonu bankanın kendi sitesine bakan
-kartlar elle güncellenmek zorunda; buna karşılık butonu R2'ye bakan her buton
-tamamen manifestten türetilebilir, dolayısıyla otomatik ilerletilebilir.
+butonlarının adresi) ayrı bir bilgidir. Bu script onu manifestten türetir:
 
-Kartların bir kısmı karma: örneğin Solo bankanın sitesinden, Konsolide R2'den
-gelir. Bu durum, BDDK o dönemde yalnızca birini yayımladığında ortaya çıkıyor
-ve R2 butonu eski dönemde takılı kalıyor. Bu yüzden ilerletme kart bazında
-değil **buton bazında** yapılır.
-
-Dönem rozeti yalnızca kartın bütün butonları R2'ye bakıyorsa ve hepsi aynı yeni
-döneme taşınmışsa güncellenir; karma kartlarda rozet zaten banka sitesindeki
-güncel dönemi gösterdiği için ona dokunulmaz.
+* Buton R2'ye bakıyorsa dönemi URL'den okunur; bankanın kendi sitesine
+  bakıyorsa kartın rozetindeki dönemde sayılır. Arşivde o tip için daha yeni
+  bir dönem varsa buton R2'deki kopyaya çevrilir. Böylece bankanın sitesine
+  bakan kartlar da BDDK yayımlar yayımlamaz ilerler; aksi halde elle
+  güncellenene kadar eski çeyrekte takılı kalıyorlardı.
+* İlerletme kart bazında değil **buton bazında** yapılır: BDDK bir dönemde
+  yalnızca Solo'yu yayımladıysa Konsolide eski dönemde kalır.
+* Dönem rozeti, kartın bütün butonları aynı yeni döneme ulaştığında güncellenir.
+* Güncel dönem manifestteki en yeni dönemdir. Rozeti bunun gerisinde kalan
+  kartlara "⏳ NÇ bekleniyor" rozeti konur, yetişen karttan kaldırılır; sayfanın
+  üstündeki kapsam şeridi bu rozeti sayar.
 """
 from __future__ import annotations
 
@@ -24,11 +25,23 @@ import re
 from ayarlar import PANO
 
 ONEK = "https://bdr-arsiv.bdr-arsiv-worker.workers.dev/raporlar/"
+AY = {"1C": "Mart", "2C": "Haziran", "3C": "Eylül", "4C": "Aralık"}
 
 
 def rozet(donem: str) -> str:
     yil, ce = donem.split("-")
     return f"{yil}/{ce.replace('C', 'Ç')}"
+
+
+def rozetten(metin: str) -> str:
+    yil, ce = metin.strip().split("/")
+    return f"{yil}-{ce.replace('Ç', 'C')}"
+
+
+def bekleme_rozeti(donem: str) -> str:
+    yil, ce = donem.split("-")
+    return (f'<span class="pending-badge" title="{rozet(donem)} ({AY[ce]} {yil}) raporu '
+            f'henüz yayınlanmadı">⏳ {ce.replace("C", "Ç")} bekleniyor</span>')
 
 
 def main():
@@ -38,6 +51,7 @@ def main():
 
     sayfa = open(PANO, encoding="utf-8").read()
     veri = json.loads(re.search(r'id="arsivManifest">(.*?)</script>', sayfa, re.S).group(1))
+    guncel = max(d for v in veri["a"].values() for d in v)
 
     def en_yeni_donem(banka: str, tip: str, sonra: str) -> str | None:
         harf = "s" if tip == "solo" else "k"
@@ -45,53 +59,63 @@ def main():
                  if harf in kod and d > sonra]
         return max(uygun) if uygun else None
 
-    ilerleyen, rozet_degisen = [], []
+    ilerleyen, rozet_degisen, bekleme = [], [], {"eklenen": 0, "kaldirilan": 0}
     parcalar, son = [], 0
 
     for m in re.finditer(r'data-bank="([^"]+)"(.*?)(?=<div class="card|\Z)', sayfa, re.S):
         ad, govde = m.group(1), m.group(2)
-        if ad not in veri["a"]:
+        rz = re.search(r'class="donem-badge">([^<]+)</span>', govde)
+        if ad not in veri["a"] or not rz:
             continue
+        kart_donemi = rozetten(rz.group(1))
 
-        butonlar = [t.group(0) for t in re.finditer(r"<a\b[^>]*>", govde)
-                    if 'class="pill' in t.group(0)]
-        r2_butonlar = [b for b in butonlar if ONEK in b]
-        if not r2_butonlar:
-            continue
-
-        yeni_govde, tasinan = govde, {}
-        for buton in r2_butonlar:
-            url = re.search(r'href="([^"]+)"', buton).group(1)
-            kuyruk = url[len(ONEK):]
-            donem, dosya = kuyruk.split("/", 1)
-            tip = "konsolide" if "-konsolide." in dosya else "solo"
+        yeni_govde, buton_donemleri = govde, []
+        for a in re.finditer(r'<a\b[^>]*class="pill[^"]*"[^>]*>(.*?)</a>', govde, re.S):
+            etiket, yazi = a.group(0), re.sub(r"<[^>]+>", "", a.group(1)).strip().lower()
+            url = re.search(r'href="([^"]+)"', etiket).group(1)
+            if url.startswith(ONEK):
+                donem, dosya = url[len(ONEK):].split("/", 1)
+                tip = "konsolide" if "-konsolide." in dosya else "solo"
+            else:
+                donem = kart_donemi
+                tip = ("konsolide" if yazi.startswith("konsolide") or "pill-alt" in etiket
+                       else "solo")
             hedef = en_yeni_donem(ad, tip, donem)
-            if not hedef:
-                continue
-            anahtar = f"{hedef}/{veri['slug'][ad]}-{tip}"
-            yeni_url = ONEK + anahtar + "." + veri["ext"].get(anahtar, "pdf")
-            yeni_govde = yeni_govde.replace(url, yeni_url)
-            tasinan[tip] = (donem, hedef)
-            ilerleyen.append((ad, tip, donem, hedef))
+            if hedef:
+                anahtar = f"{hedef}/{veri['slug'][ad]}-{tip}"
+                yeni_url = ONEK + anahtar + "." + veri["ext"].get(anahtar, "pdf")
+                yeni_govde = yeni_govde.replace(f'href="{url}"', f'href="{yeni_url}"', 1)
+                ilerleyen.append((ad, tip, donem, hedef))
+                donem = hedef
+            buton_donemleri.append(donem)
 
-        if not tasinan:
-            continue
+        # rozet: bütün butonlar aynı, daha yeni döneme ulaştıysa
+        yeni_donem = kart_donemi
+        if buton_donemleri and len(set(buton_donemleri)) == 1 and buton_donemleri[0] > kart_donemi:
+            yeni_donem = buton_donemleri[0]
+            yeni_govde = yeni_govde.replace(rz.group(0),
+                                            f'class="donem-badge">{rozet(yeni_donem)}</span>', 1)
+            rozet_degisen.append((ad, rz.group(1), rozet(yeni_donem)))
 
-        # rozet: yalnızca bütün butonlar R2'de ve hepsi aynı yeni dönemdeyse
-        if len(r2_butonlar) == len(butonlar) and len(tasinan) == len(butonlar):
-            hedefler = {h for _, h in tasinan.values()}
-            rz = re.search(r'class="donem-badge">([^<]+)<', yeni_govde)
-            if len(hedefler) == 1 and rz:
-                yeni = rozet(hedefler.pop())
-                if rz.group(1) != yeni:
-                    yeni_govde = yeni_govde.replace(
-                        f'class="donem-badge">{rz.group(1)}<',
-                        f'class="donem-badge">{yeni}<')
-                    rozet_degisen.append((ad, rz.group(1), yeni))
+        # bekleme rozeti: güncel dönemin gerisindeki kartlarda olmalı, diğerlerinde olmamalı
+        bekleyen = re.search(r'\s*<span class="pending-badge".*?</span>', yeni_govde, re.S)
+        if yeni_donem < guncel:
+            dogru = bekleme_rozeti(guncel)
+            if not bekleyen:
+                yer = re.search(r'class="donem-badge">[^<]+</span>', yeni_govde)
+                yeni_govde = yeni_govde[:yer.end()] + dogru + yeni_govde[yer.end():]
+                bekleme["eklenen"] += 1
+            elif bekleyen.group(0).strip() != dogru:
+                yeni_govde = yeni_govde.replace(bekleyen.group(0), dogru, 1)
+                bekleme["eklenen"] += 1
+        elif bekleyen:
+            yeni_govde = yeni_govde.replace(bekleyen.group(0), "", 1)
+            bekleme["kaldirilan"] += 1
 
-        parcalar.append(sayfa[son:m.start(2)])
-        parcalar.append(yeni_govde)
-        son = m.end(2)
+        if yeni_govde != govde:
+            parcalar.append(sayfa[son:m.start(2)])
+            parcalar.append(yeni_govde)
+            son = m.end(2)
 
     parcalar.append(sayfa[son:])
 
@@ -99,12 +123,15 @@ def main():
         print(f"  ^ {ad} {tip}: {e} -> {y}")
     for ad, e, y in rozet_degisen:
         print(f"  * {ad} rozeti: {e} -> {y}")
-    print(f"\nilerletilen buton: {len(ilerleyen)} | rozet: {len(rozet_degisen)}")
+    print(f"\ngüncel dönem: {rozet(guncel)}")
+    print(f"ilerletilen buton: {len(ilerleyen)} | rozet: {len(rozet_degisen)} | "
+          f"bekleme rozeti eklenen/düzeltilen: {bekleme['eklenen']}, kaldırılan: {bekleme['kaldirilan']}")
 
-    if ilerleyen and args.uygula:
-        open(PANO, "w", encoding="utf-8").write("".join(parcalar))
+    yeni_sayfa = "".join(parcalar)
+    if yeni_sayfa != sayfa and args.uygula:
+        open(PANO, "w", encoding="utf-8").write(yeni_sayfa)
         print("index.html güncellendi")
-    elif ilerleyen:
+    elif yeni_sayfa != sayfa:
         print("(kuru çalıştırma — yazmak için --uygula)")
 
 

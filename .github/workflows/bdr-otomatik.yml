@@ -48,6 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pages: write          # push sonrası Pages yayınını açıkça istemek için
     env:
       # rclone'u dosya yerine ortam değişkeniyle yapılandırıyoruz; böylece
       # kimlik bilgileri diske yazılmıyor. Bucket'a özel token bucket varlık
@@ -70,8 +71,21 @@ jobs:
           curl -fsSL https://rclone.org/install.sh | sudo bash
           rclone version | head -1
 
+      # Eskiden "rclone ... | tail -3" idi: boru hattı tail'in çıkış kodunu
+      # döndürdüğü için R2'ye erişilemese bile adım yeşil görünüyor, hata bir
+      # sonraki adımda anlamsız bir şekilde patlıyordu.
       - name: R2 erişimini doğrula
-        run: rclone lsf r2:bdr-arsiv/raporlar --dirs-only | tail -3
+        run: |
+          set -o pipefail
+          eksik=""
+          [ -n "$RCLONE_CONFIG_R2_ACCESS_KEY_ID" ]     || eksik="$eksik R2_ACCESS_KEY_ID"
+          [ -n "$RCLONE_CONFIG_R2_SECRET_ACCESS_KEY" ] || eksik="$eksik R2_SECRET_ACCESS_KEY"
+          [ -n "$RCLONE_CONFIG_R2_ENDPOINT" ]          || eksik="$eksik R2_ENDPOINT"
+          if [ -n "$eksik" ]; then
+            echo "::error title=R2 secret eksik::Settings → Secrets and variables → Actions altında tanımlı değil:$eksik"
+            exit 1
+          fi
+          rclone lsf r2:bdr-arsiv/raporlar --dirs-only --retries 1 --low-level-retries 2 | tail -3
 
       - name: Yeni raporları bul, yükle, panoyu güncelle
         run: |
@@ -80,6 +94,8 @@ jobs:
 
       - name: Değişiklik varsa yayına al
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.kuru) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet -- index.html; then
             echo "index.html değişmedi — yeni rapor yok."
@@ -93,6 +109,11 @@ jobs:
           bakim/ceyrek_guncelle.py --otomatik tarafından üretildi.
           Doğrulama (div dengesi, manifest-R2 örtüşmesi, doğrudan linkler) geçti."
           git push
+          # GITHUB_TOKEN ile yapılan push'un Pages yayınını başlatacağına
+          # güvenmiyoruz; yayını açıkça istiyoruz.
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" >/dev/null \
+            && echo "Pages yayını istendi" \
+            || echo "::warning::Pages yayını API ile istenemedi"
 
   bankalar:
     name: Banka siteleri
@@ -101,6 +122,7 @@ jobs:
     permissions:
       contents: write
       issues: write
+      pages: write
     env:
       RCLONE_CONFIG_R2_TYPE: s3
       RCLONE_CONFIG_R2_PROVIDER: Cloudflare
@@ -118,6 +140,11 @@ jobs:
       - name: rclone kur
         run: curl -fsSL https://rclone.org/install.sh | sudo bash
 
+      - name: R2 erişimini doğrula
+        run: |
+          set -o pipefail
+          rclone lsf r2:bdr-arsiv/raporlar --dirs-only | tail -3
+
       - name: Banka sitelerini tara ve bulunanları indir
         run: |
           python3 bakim/banka_tara.py --markdown /tmp/tarama.md \
@@ -125,6 +152,8 @@ jobs:
 
       - name: Arşive giren varsa panoyu güncelle
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.kuru) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git fetch origin main
           git checkout -B main origin/main
@@ -142,6 +171,9 @@ jobs:
           ayrımı etiketten kesin okunabilen raporlar arşive girer; okunamayanlar
           karantinaya alınıp issue ile bildirilir."
           git push
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" >/dev/null \
+            && echo "Pages yayını istendi" \
+            || echo "::warning::Pages yayını API ile istenemedi"
 
       - name: Bulgu varsa issue aç
         if: always()

@@ -23,6 +23,7 @@ import tempfile
 import time
 
 from bdr_indir import BANKALAR, CEYREK, belge_cikar, indir, slug, BDDK
+from kota import Kota
 import urllib.parse
 
 CEYREK_AY = {"1C": 3, "2C": 6, "3C": 9, "4C": 12}
@@ -85,8 +86,10 @@ def main():
     print(f"mevcut nesne          : {len(nesneler)}\n", flush=True)
 
     eklenen, denenen = [], 0
+    kota = Kota(args.uygula)
     with tempfile.TemporaryDirectory() as gecici:
         vekiller, vekil_yolu = banka_kaynakli(gecici)
+        ilk_vekiller = list(vekiller)
         if vekiller:
             print(f"banka sitesinden gelen vekil kopya: {len(vekiller)}\n", flush=True)
         for donem in hedefler:
@@ -112,16 +115,20 @@ def main():
                     yerel = os.path.join(gecici, os.path.basename(anahtar))
                     with open(yerel, "wb") as f:
                         f.write(belge)
+                    # yer yoksa en eski çeyreği bütünüyle sil (yüklenen dönem korunur)
+                    kota.yer_ac(len(belge), korunan={donem})
                     if args.uygula:
                         subprocess.run(["rclone", "copyto", yerel, f"{UZAK}/{anahtar}",
                                         "--s3-no-check-bucket"], check=True)
                         for k in vekil:
                             vekiller.remove(k)       # artık BDDK kopyası duruyor
+                    kota.eklendi(len(belge))
                     eklenen.append((anahtar, len(belge)))
                     isaret = " (banka kopyasının yerine)" if vekil else ""
                     print(f"  + {anahtar}  ({len(belge)/1048576:.1f} MB){isaret}", flush=True)
 
-        if args.uygula:
+        # liste değişmediyse R2'ye boşuna yazma (her çalıştırmada bir yazma işlemi)
+        if args.uygula and vekiller != ilk_vekiller:
             json.dump(vekiller, open(vekil_yolu, "w", encoding="utf-8"),
                       ensure_ascii=False, indent=1)
             subprocess.run(["rclone", "copyto", vekil_yolu, KAYNAK_DOSYA,
@@ -129,6 +136,8 @@ def main():
 
     print(f"\ndenenen kombinasyon : {denenen}")
     print(f"yeni rapor          : {len(eklenen)}")
+    print(f"R2 doluluk          : {kota.dolu/1e9:.2f} GB"
+          + (f"  (kota için silinen çeyrek: {', '.join(kota.silinen)})" if kota.silinen else ""))
     if eklenen and not args.uygula:
         print("\n(kuru çalıştırma — R2'ye yazmak için --uygula)")
 
