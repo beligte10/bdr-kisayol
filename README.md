@@ -79,7 +79,7 @@ R2 nesneleri `*.r2.dev` üzerinden değil, bir **Cloudflare Worker** (`bdr-arsiv
 
 ### Otomatik güncelleme (GitHub Actions)
 
-`.github/workflows/bdr-otomatik.yml` iki katmanlı çalışır. Takvim: raporların yayımlandığı aylarda (Şubat/Mayıs/Ağustos/Kasım) her gün 09:00 TR, diğer aylarda pazartesileri; 2026-11-02 .. 2026-12-01 arasında bunun yerine hafta içi 17:00 TR (GitHub zamanlı çalışmaları yoğunlukta saatlerce geciktirebilir). `workflow_dispatch` ile elle de tetiklenebilir (`kuru: true` hiçbir şey yazmadan denemek için).
+`.github/workflows/bdr-otomatik.yml` iki katmanlı çalışır; iki katman **aynı anda** (paralel) koşar. İkisi de `main`'e yazabildiği için yayın `bakim/yayinla.sh` ile yapılır: sonra gelen push reddedilirse en güncel `main` alınır, pano R2'den yeniden üretilir ve tekrar denenir. Takvim: raporların yayımlandığı aylarda (Şubat/Mayıs/Ağustos/Kasım) her gün 09:00 TR, diğer aylarda pazartesileri; 2026-11-02 .. 2026-12-01 arasında bunun yerine hafta içi 17:00 TR (GitHub zamanlı çalışmaları yoğunlukta saatlerce geciktirebilir). `workflow_dispatch` ile elle de tetiklenebilir (`kuru: true` hiçbir şey yazmadan denemek için).
 
 **Ön koşul:** depo ayarlarında *Settings → Secrets and variables → Actions* altında `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT` tanımlı ve R2'ye **yazma** yetkili olmalı. Eksikse "R2 erişimini doğrula" adımı bunu adıyla söyleyip durur.
 

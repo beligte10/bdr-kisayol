@@ -60,9 +60,9 @@ jobs:
       RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -97,28 +97,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet -- index.html; then
-            echo "index.html değişmedi — yeni rapor yok."
-            exit 0
-          fi
-          git config user.name  "bdr-bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          git commit -m "Otomatik: BDDK'da yeni yayımlanan raporlar eklendi
+          bash bakim/yayinla.sh "Otomatik: BDDK'da yeni yayımlanan raporlar eklendi
 
           bakim/ceyrek_guncelle.py --otomatik tarafından üretildi.
           Doğrulama (div dengesi, manifest-R2 örtüşmesi, doğrudan linkler) geçti."
-          git push
-          # GITHUB_TOKEN ile yapılan push'un Pages yayınını başlatacağına
-          # güvenmiyoruz; yayını açıkça istiyoruz.
-          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" >/dev/null \
-            && echo "Pages yayını istendi" \
-            || echo "::warning::Pages yayını API ile istenemedi"
 
+  # BDDK işiyle aynı anda çalışır (sıralı değil). İkisi de main'e yazabildiği
+  # için yayın bakim/yayinla.sh üzerinden yapılır: push reddedilirse en güncel
+  # main alınıp pano R2'den yeniden üretilir.
   bankalar:
     name: Banka siteleri
     runs-on: ubuntu-latest
-    needs: bddk
+    needs: kapi
+    if: ${{ needs.kapi.outputs.calis == 'true' }}
     permissions:
       contents: write
       issues: write
@@ -131,9 +122,9 @@ jobs:
       RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -143,7 +134,15 @@ jobs:
       - name: R2 erişimini doğrula
         run: |
           set -o pipefail
-          rclone lsf r2:bdr-arsiv/raporlar --dirs-only | tail -3
+          eksik=""
+          [ -n "$RCLONE_CONFIG_R2_ACCESS_KEY_ID" ]     || eksik="$eksik R2_ACCESS_KEY_ID"
+          [ -n "$RCLONE_CONFIG_R2_SECRET_ACCESS_KEY" ] || eksik="$eksik R2_SECRET_ACCESS_KEY"
+          [ -n "$RCLONE_CONFIG_R2_ENDPOINT" ]          || eksik="$eksik R2_ENDPOINT"
+          if [ -n "$eksik" ]; then
+            echo "::error title=R2 secret eksik::Settings → Secrets and variables → Actions altında tanımlı değil:$eksik"
+            exit 1
+          fi
+          rclone lsf r2:bdr-arsiv/raporlar --dirs-only --retries 1 --low-level-retries 2 | tail -3
 
       - name: Banka sitelerini tara ve bulunanları indir
         run: |
@@ -155,25 +154,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git fetch origin main
-          git checkout -B main origin/main
+          git fetch -q origin main
+          git checkout -q -B main origin/main
           python3 bakim/ceyrek_guncelle.py --sadece-yayinla
-          if git diff --quiet -- index.html; then
-            echo "index.html değişmedi."
-            exit 0
-          fi
-          git config user.name  "bdr-bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          git commit -m "Otomatik: banka sitelerinden erken yayımlanan raporlar eklendi
+          bash bakim/yayinla.sh "Otomatik: banka sitelerinden erken yayımlanan raporlar eklendi
 
           bakim/banka_tara.py --uygula tarafından bulundu. Yalnızca Solo/Konsolide
           ayrımı etiketten kesin okunabilen raporlar arşive girer; okunamayanlar
           karantinaya alınıp issue ile bildirilir."
-          git push
-          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" >/dev/null \
-            && echo "Pages yayını istendi" \
-            || echo "::warning::Pages yayını API ile istenemedi"
 
       - name: Bulgu varsa issue aç
         if: always()
