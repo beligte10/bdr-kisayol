@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from bdr_indir import BANKALAR, CEYREK, belge_cikar, indir, slug, BDDK
 from kota import Kota
@@ -69,7 +70,9 @@ def r2_envanteri() -> tuple[set[str], set[str]]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--uygula", action="store_true", help="bulunanları R2'ye yükle")
-    ap.add_argument("--bekleme", type=float, default=0.6, help="istekler arası saniye")
+    ap.add_argument("--bekleme", type=float, default=0.6,
+                    help="her işçinin istekleri arasındaki saniye")
+    ap.add_argument("--isci", type=int, default=6, help="eşzamanlı istek sayısı")
     args = ap.parse_args()
 
     nesneler, donemler = r2_envanteri()
@@ -85,13 +88,15 @@ def main():
     print(f"taranacak dönemler    : {', '.join(hedefler)}")
     print(f"mevcut nesne          : {len(nesneler)}\n", flush=True)
 
-    eklenen, denenen = [], 0
+    eklenen = []
     kota = Kota(args.uygula)
     with tempfile.TemporaryDirectory() as gecici:
         vekiller, vekil_yolu = banka_kaynakli(gecici)
         ilk_vekiller = list(vekiller)
         if vekiller:
             print(f"banka sitesinden gelen vekil kopya: {len(vekiller)}\n", flush=True)
+        # 1) Denenecek kombinasyonlar (zaten yayımda olanlar atlanır)
+        isler = []
         for donem in hedefler:
             yil, ce = donem.split("-")
             ay = CEYREK_AY[ce]
@@ -101,31 +106,42 @@ def main():
                     vekil = [k for k in vekiller if k.startswith("raporlar/" + taban + ".")]
                     if any(n.startswith(taban + ".") for n in nesneler) and not vekil:
                         continue                     # BDDK kopyası zaten yayımda
-                    denenen += 1
                     dosya = f"BDREki-{kod}-{tip}-{yil}-{ay:02d}.zip"
-                    ham = indir(BDDK + urllib.parse.quote(dosya))
-                    time.sleep(args.bekleme)         # BDDK'yı yormamak için
-                    if not ham or len(ham) < 1000 or b"PK\x03\x04" not in ham[:4096]:
-                        continue                     # o dönem/tip için yayın yok
-                    belge, uzanti = belge_cikar(ham)
-                    if not belge:
-                        print(f"  ! belge çıkarılamadı: {ad} {donem} {tip}", file=sys.stderr)
-                        continue
-                    anahtar = f"{taban}.{uzanti}"
-                    yerel = os.path.join(gecici, os.path.basename(anahtar))
-                    with open(yerel, "wb") as f:
-                        f.write(belge)
-                    # yer yoksa en eski çeyreği bütünüyle sil (yüklenen dönem korunur)
-                    kota.yer_ac(len(belge), korunan={donem})
-                    if args.uygula:
-                        subprocess.run(["rclone", "copyto", yerel, f"{UZAK}/{anahtar}",
-                                        "--s3-no-check-bucket"], check=True)
-                        for k in vekil:
-                            vekiller.remove(k)       # artık BDDK kopyası duruyor
-                    kota.eklendi(len(belge))
-                    eklenen.append((anahtar, len(belge)))
-                    isaret = " (banka kopyasının yerine)" if vekil else ""
-                    print(f"  + {anahtar}  ({len(belge)/1048576:.1f} MB){isaret}", flush=True)
+                    isler.append((donem, ad, tip, taban, vekil, dosya))
+        denenen = len(isler)
+
+        # 2) İstekler paralel atılır (sürenin neredeyse tamamı ağ gecikmesiydi);
+        #    her işçi istekler arasında bekler, BDDK'ya saniyede en çok
+        #    isci/bekleme istek gider. Sonuçlar gönderim sırasıyla işlenir.
+        def getir(is_):
+            ham = indir(BDDK + urllib.parse.quote(is_[5]))
+            time.sleep(args.bekleme)                 # BDDK'yı yormamak için
+            return ham
+
+        # 3) İşleme sıralı kalır: kota, yükleme ve vekil listesi tek akışta
+        with ThreadPoolExecutor(max_workers=args.isci) as havuz:
+            for (donem, ad, tip, taban, vekil, _), ham in zip(isler, havuz.map(getir, isler)):
+                if not ham or len(ham) < 1000 or b"PK\x03\x04" not in ham[:4096]:
+                    continue                         # o dönem/tip için yayın yok
+                belge, uzanti = belge_cikar(ham)
+                if not belge:
+                    print(f"  ! belge çıkarılamadı: {ad} {donem} {tip}", file=sys.stderr)
+                    continue
+                anahtar = f"{taban}.{uzanti}"
+                yerel = os.path.join(gecici, os.path.basename(anahtar))
+                with open(yerel, "wb") as f:
+                    f.write(belge)
+                # yer yoksa en eski çeyreği bütünüyle sil (yüklenen dönem korunur)
+                kota.yer_ac(len(belge), korunan={donem})
+                if args.uygula:
+                    subprocess.run(["rclone", "copyto", yerel, f"{UZAK}/{anahtar}",
+                                    "--s3-no-check-bucket"], check=True)
+                    for k in vekil:
+                        vekiller.remove(k)           # artık BDDK kopyası duruyor
+                kota.eklendi(len(belge))
+                eklenen.append((anahtar, len(belge)))
+                isaret = " (banka kopyasının yerine)" if vekil else ""
+                print(f"  + {anahtar}  ({len(belge)/1048576:.1f} MB){isaret}", flush=True)
 
         # liste değişmediyse R2'ye boşuna yazma (her çalıştırmada bir yazma işlemi)
         if args.uygula and vekiller != ilk_vekiller:
