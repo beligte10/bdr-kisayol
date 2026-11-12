@@ -56,15 +56,43 @@ def sonraki_donem(donem: str) -> str:
     return f"{int(yil) + 1}-1C" if i == 3 else f"{yil}-{sira[i + 1]}"
 
 
-def r2_envanteri() -> tuple[set[str], set[str]]:
-    """(nesne anahtarları, dönem klasörleri) döndürür."""
-    s = subprocess.run(["rclone", "lsf", UZAK, "--recursive", "--files-only"],
+def onceki_donem(donem: str) -> str:
+    yil, ce = donem.split("-")
+    sira = ["1C", "2C", "3C", "4C"]
+    i = sira.index(ce)
+    return f"{int(yil) - 1}-4C" if i == 0 else f"{yil}-{sira[i - 1]}"
+
+
+# Yeni dosya, önceki çeyrekteki karşılığının bu oranından küçükse "kısa" sayılır.
+# (BDDK bazen yalnızca mali tabloları yayımlıyor: Ziraat 3Ç 7 sayfa, 2Ç 114 sayfa.)
+KISA_ORAN = 0.35
+
+
+def r2_envanteri() -> tuple[set[str], set[str], dict[str, int]]:
+    """(nesne anahtarları, dönem klasörleri, anahtar -> bayt) döndürür."""
+    s = subprocess.run(["rclone", "lsf", UZAK, "--recursive", "--files-only",
+                        "--format", "ps", "--separator", ";"],
                        capture_output=True, text=True)
     if s.returncode != 0:
         sys.exit(f"rclone listesi alınamadı:\n{s.stderr.strip()}")
-    nesneler = {x.strip() for x in s.stdout.splitlines() if x.strip()}
+    boyutlar = {}
+    for satir in s.stdout.splitlines():
+        yol, _, boyut = satir.strip().rpartition(";")
+        if yol and boyut.isdigit():
+            boyutlar[yol] = int(boyut)
+    nesneler = set(boyutlar)
     donemler = {n.split("/")[0] for n in nesneler if "/" in n}
-    return nesneler, donemler
+    return nesneler, donemler, boyutlar
+
+
+def kisa_mi(taban: str, donem: str, boyut: int, boyutlar: dict[str, int]) -> int | None:
+    """Önceki çeyrekteki aynı rapor çok daha büyükse onun boyutunu döndürür."""
+    once = onceki_donem(donem)
+    onceki = taban.replace(donem + "/", once + "/", 1)
+    for anahtar, b in boyutlar.items():
+        if anahtar.startswith(onceki + ".") and b > 0 and boyut < b * KISA_ORAN:
+            return b
+    return None
 
 
 def main():
@@ -75,7 +103,7 @@ def main():
     ap.add_argument("--isci", type=int, default=6, help="eşzamanlı istek sayısı")
     args = ap.parse_args()
 
-    nesneler, donemler = r2_envanteri()
+    nesneler, donemler, boyutlar = r2_envanteri()
     if not donemler:
         sys.exit("R2 boş görünüyor — otomatik tarama güvenli değil, elle bakın")
 
@@ -89,6 +117,7 @@ def main():
     print(f"mevcut nesne          : {len(nesneler)}\n", flush=True)
 
     eklenen = []
+    kisalar = []
     kota = Kota(args.uygula)
     with tempfile.TemporaryDirectory() as gecici:
         vekiller, vekil_yolu = banka_kaynakli(gecici)
@@ -141,6 +170,13 @@ def main():
                 kota.eklendi(len(belge))
                 eklenen.append((anahtar, len(belge)))
                 isaret = " (banka kopyasının yerine)" if vekil else ""
+                onceki_b = kisa_mi(taban, donem, len(belge), boyutlar)
+                if onceki_b:
+                    kisalar.append((anahtar, len(belge), onceki_b))
+                    isaret += "  !! KISA"
+                    print(f"::warning title=BDDK dosyası kısa::{anahtar} {len(belge)/1048576:.1f} MB; "
+                          f"önceki çeyrek {onceki_b/1048576:.1f} MB — yalnızca mali tablo olabilir, "
+                          f"denetim raporunu banka sitesinden kontrol edin")
                 print(f"  + {anahtar}  ({len(belge)/1048576:.1f} MB){isaret}", flush=True)
 
         # liste değişmediyse R2'ye boşuna yazma (her çalıştırmada bir yazma işlemi)
@@ -154,6 +190,15 @@ def main():
     print(f"yeni rapor          : {len(eklenen)}")
     print(f"R2 doluluk          : {kota.dolu/1e9:.2f} GB"
           + (f"  (kota için silinen çeyrek: {', '.join(kota.silinen)})" if kota.silinen else ""))
+    if kisalar:
+        print(f"kısa kalan dosya    : {len(kisalar)} (denetim raporu eksik olabilir)")
+        with open(os.environ.get("KISA_RAPOR", "/tmp/kisa.md"), "w", encoding="utf-8") as f:
+            f.write("BDDK'dan gelen aşağıdaki dosyalar önceki çeyreğe göre çok küçük; "
+                    "büyük olasılıkla yalnızca mali tablo içeriyor. Bankanın sitesinden "
+                    "denetim raporunu indirip R2'deki dosyanın üzerine yazın "
+                    "(`kaynak_banka.json`'a eklemeyin).\n\n| Dosya | Yeni | Önceki çeyrek |\n|---|---|---|\n")
+            for a, b, o in kisalar:
+                f.write(f"| {a} | {b/1048576:.1f} MB | {o/1048576:.1f} MB |\n")
     if eklenen and not args.uygula:
         print("\n(kuru çalıştırma — R2'ye yazmak için --uygula)")
 
@@ -163,6 +208,7 @@ def main():
         with open(ozet, "a") as f:
             f.write(f"yeni={len(eklenen)}\n")
             f.write("liste=" + "; ".join(a for a, _ in eklenen[:20]) + "\n")
+            f.write(f"kisa={len(kisalar)}\n")
 
 
 if __name__ == "__main__":

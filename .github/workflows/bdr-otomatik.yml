@@ -48,6 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
       pages: write          # push sonrası Pages yayınını açıkça istemek için
     env:
       # rclone'u dosya yerine ortam değişkeniyle yapılandırıyoruz; böylece
@@ -101,6 +102,17 @@ jobs:
 
           bakim/ceyrek_guncelle.py --otomatik tarafından üretildi.
           Doğrulama (div dengesi, manifest-R2 örtüşmesi, doğrudan linkler) geçti."
+
+      - name: Kısa kalan BDDK dosyası varsa issue aç
+        if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.kuru) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f /tmp/kisa.md ]; then
+            gh issue create --title "BDDK dosyası eksik görünüyor ($(date +%Y-%m-%d))" \
+              --body-file /tmp/kisa.md --label otomatik \
+              || gh issue create --title "BDDK dosyası eksik görünüyor ($(date +%Y-%m-%d))" --body-file /tmp/kisa.md
+          fi
 
   # BDDK işiyle aynı anda çalışır (sıralı değil). İkisi de main'e yazabildiği
   # için yayın bakim/yayinla.sh üzerinden yapılır: push reddedilirse en güncel
